@@ -1,0 +1,122 @@
+# ============================================
+# 编外人员管理系统 - Docker Compose 配置
+# 使用方法: docker-compose up -d
+# ============================================
+
+version: '3.8'
+
+services:
+  # 主应用服务
+  salary-system:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: bwryglxt-system  # 编外人员管理系统拼音缩写
+    image: bwryglxt/salary-system:latest
+    
+    # 端口映射（主机端口:容器端口）
+    ports:
+      - "${PORT:-5050}:5050"
+    
+    # 数据卷挂载（数据持久化）
+    volumes:
+      # 数据库和日志数据持久化
+      - salary-data:/app/data
+      # 可选：挂载本地静态文件（开发调试用）
+      # - ./static:/app/static:ro
+    
+    # 环境变量配置
+    environment:
+      # Flask配置
+      - FLASK_ENV=production
+      - SECRET_KEY=${SECRET_KEY:-your-secret-key-change-this-in-production}
+      
+      # 数据库配置（使用SQLite，无需额外数据库服务）
+      - DATABASE_URL=sqlite:///data/salary.db
+      
+      # 时区设置
+      - TZ=${TZ:-Asia/Shanghai}
+    
+    # 资源限制（防止资源耗尽）
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 512M
+        reservations:
+          cpus: '0.5'
+          memory: 128M
+    
+    # 重启策略
+    restart: unless-stopped
+    
+    # 健康检查
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5050/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    
+    # 日志配置
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    
+    # 网络配置
+    networks:
+      - salary-network
+    
+    # 安全选项
+    security_opt:
+      - no-new-privileges:true
+
+# 数据卷定义（数据持久化）
+volumes:
+  salary-data:
+    driver: local
+    name: bwryglxt-data
+
+# 网络定义
+networks:
+  salary-network:
+    driver: bridge
+    name: bwryglxt-network
+
+# ============================================
+# 高级配置示例（取消注释使用）
+# ============================================
+
+# 如果需要Nginx反向代理（生产环境推荐）:
+# 
+#   nginx:
+#     image: nginx:alpine
+#     container_name: bwryglxt-nginx
+#     ports:
+#       - "80:80"
+#       - "443:443"
+#     volumes:
+#       - ./nginx.conf:/etc/nginx/nginx.conf:ro
+#       - ./ssl:/etc/nginx/ssl:ro
+#     depends_on:
+#       - salary-system
+#     restart: unless-stopped
+#     networks:
+#       - salary-network
+
+# 如果需要定时备份:
+#
+#   backup:
+#     image: alpine:latest
+#     container_name: bwryglxt-backup
+#     volumes:
+#       - salary-data:/data:ro
+#       - ./backups:/backups
+#     command: >
+#       sh -c "tar czf /backups/backup-$$(date +%Y%m%d_%H%M%S).tar.gz -C /data . &&
+#              find /backups -name 'backup-*' -mtime +30 -delete"
+#     restart: "no"
+#     networks:
+#       - salary-network

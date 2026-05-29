@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>薪资核算 - 人员薪酬管理系统</title>
+    <link rel="stylesheet" href="css/style.css">
+    <script src="https://cdn.bootcdn.net/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+</head>
+<body>
+    <div class="layout">
+        <div class="sidebar"></div>
+        <div class="main-content">
+            <div class="top-header">
+                <span class="page-title">薪资核算</span>
+                <div class="user-info">
+                    <span id="username"></span>
+                    <button class="btn btn-sm btn-outline" onclick="logout()">退出</button>
+                </div>
+            </div>
+            <div class="page-body">
+                <div class="card">
+                    <div class="card-title">核算参数</div>
+                    <div class="toolbar">
+                        <label style="font-weight:500;">帐套：</label>
+                        <select class="form-control" id="bookSelect" style="min-width:180px;">
+                            <option value="">请选择帐套</option>
+                        </select>
+                        <label style="font-weight:500;">部门：</label>
+                        <div id="ssDept" style="min-width:140px;"></div>
+                        <label style="font-weight:500;">单位：</label>
+                        <div id="ssUnit" style="min-width:140px;"></div>
+                        <label style="font-weight:500;">年份：</label>
+                        <input type="number" class="form-control" id="calcYear" style="width:100px;">
+                        <label style="font-weight:500;">月份：</label>
+                        <select class="form-control" id="calcMonth" style="width:80px;"></select>
+                        <button class="btn btn-primary btn-lg" onclick="doCalc()" id="btnCalc">一键核算</button>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-title">核算记录</div>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th style="width:40px;"><input type="checkbox" id="selectAllRecords" onclick="toggleSelectAllRecords(this)"></th>
+                                <th>序号</th>
+                                <th>帐套</th>
+                                <th>部门</th>
+                                <th>单位</th>
+                                <th>年月</th>
+                                <th>人数</th>
+                                <th>应发合计</th>
+                                <th>扣款合计</th>
+                                <th>实发合计</th>
+                                <th>核算时间</th>
+                                <th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="recordTable"></tbody>
+                    </table>
+                    <div style="margin-top:10px;">
+                        <button class="btn btn-danger" id="batchDeleteRecordBtn" style="display:none;" onclick="batchDeleteRecords()">批量删除 (<span id="selectedRecordCount">0</span>)</button>
+                    </div>
+                    <div class="pagination" id="recordPagination"></div>
+                </div>
+
+                <div id="detailArea" style="display:none;">
+                    <div class="card">
+                        <div class="card-title">
+                            核算详情 <span id="detailInfo" style="font-weight:normal;color:#6c757d;font-size:13px;"></span>
+                            <button class="btn btn-sm btn-outline" style="float:right;" onclick="hideDetail()">返回列表</button>
+                        </div>
+                        <div style="overflow-x:auto;">
+                            <table>
+                                <thead id="detailThead"></thead>
+                                <tbody id="detailTbody"></tbody>
+                            </table>
+                        </div>
+                        <div class="pagination" id="detailPagination"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/common.js"></script>
+    <script>
+        initPage('salary_calc');
+
+        var _deptUnits = {};
+        var _recordPage = 1;
+        var _detailData = null;
+        var _detailPage = 1;
+        var _detailPerPage = 20;
+
+        var now = new Date();
+        $('#calcYear').val(now.getFullYear());
+        var monthHtml = '';
+        for (var m = 1; m <= 12; m++) {
+            monthHtml += '<option value="' + m + '"' + (m === now.getMonth() + 1 ? ' selected' : '') + '>' + m + '月</option>';
+        }
+        $('#calcMonth').html(monthHtml);
+
+        apiGet('/api/salary_book', function(res) {
+            if (res.code === 200) {
+                var html = '<option value="">请选择帐套</option>';
+                for (var i = 0; i < res.data.length; i++) {
+                    html += '<option value="' + res.data[i].id + '">' + res.data[i].book_name + '</option>';
+                }
+                $('#bookSelect').html(html);
+            }
+        });
+
+        apiGet('/api/field_meta', function(res) {
+            if (res.code === 200) {
+                for (var i = 0; i < res.data.length; i++) {
+                    var f = res.data[i];
+                    if (f.link_field && f.link_options && typeof f.link_options === 'object') {
+                        _deptUnits = f.link_options;
+                        break;
+                    }
+                }
+                loadDeptOptions();
+            }
+        });
+
+        function loadDeptOptions() {
+            apiGet('/api/dept_list', function(res) {
+                if (res.code === 200) {
+                    var deptData = [{value: '', text: '全部部门'}];
+                    for (var i = 0; i < res.data.length; i++) {
+                        deptData.push({value: res.data[i], text: res.data[i]});
+                    }
+                    $('#ssDept').searchSelect({
+                        data: deptData,
+                        placeholder: '全部部门',
+                        searchPlaceholder: '搜索部门...',
+                        value: '',
+                        onChange: function(val) { onDeptChange(val); }
+                    });
+                }
+            });
+
+            $('#ssUnit').searchSelect({
+                data: [{value: '', text: '全部单位'}],
+                placeholder: '全部单位',
+                searchPlaceholder: '搜索单位...',
+                value: ''
+            });
+        }
+
+        function onDeptChange(dept) {
+            var unitData = [{value: '', text: '全部单位'}];
+            if (dept && _deptUnits[dept]) {
+                var units = _deptUnits[dept];
+                for (var i = 0; i < units.length; i++) {
+                    unitData.push({value: units[i], text: units[i]});
+                }
+            } else if (dept) {
+                apiGet('/api/unit_list?dept=' + encodeURIComponent(dept), function(res) {
+                    if (res.code === 200) {
+                        var uData = [{value: '', text: '全部单位'}];
+                        for (var i = 0; i < res.data.length; i++) {
+                            uData.push({value: res.data[i], text: res.data[i]});
+                        }
+                        $('#ssUnit')[0].setOptions(uData);
+                        $('#ssUnit')[0].setValue('');
+                    }
+                });
+                return;
+            }
+            $('#ssUnit')[0].setOptions(unitData);
+            $('#ssUnit')[0].setValue('');
+        }
+
+        loadCalcRecords(1);
+
+        function doCalc() {
+            var bookId = $('#bookSelect').val();
+            var year = $('#calcYear').val();
+            var month = $('#calcMonth').val();
+            var dept = $('#ssDept').data('value') || '';
+            var unit = $('#ssUnit').data('value') || '';
+            if (!bookId) { showToast('请选择帐套', 'error'); return; }
+            if (!year || !month) { showToast('请选择年份和月份', 'error'); return; }
+
+            $('#btnCalc').prop('disabled', true).text('核算中...');
+            apiPost('/api/salary_calc', {
+                book_id: parseInt(bookId),
+                year: parseInt(year),
+                month: parseInt(month),
+                dept: dept,
+                unit: unit
+            }, function(res) {
+                $('#btnCalc').prop('disabled', false).text('一键核算');
+                if (res.code === 200) {
+                    showToast(res.msg, 'success');
+                    loadCalcRecords(1);
+                } else {
+                    showToast(res.msg, 'error');
+                }
+            }, function() {
+                $('#btnCalc').prop('disabled', false).text('一键核算');
+            });
+        }
+
+        function loadCalcRecords(page) {
+            _recordPage = page || 1;
+            apiGet('/api/salary_calc_records?page=' + _recordPage + '&per_page=15', function(res) {
+                if (res.code === 200) {
+                    var list = res.data.list || [];
+                    var html = '';
+                    for (var i = 0; i < list.length; i++) {
+                        var r = list[i];
+                        html += '<tr>';
+                        html += '<td style="text-align:center;"><input type="checkbox" class="record-checkbox" value="' + r.id + '" onclick="updateSelectedRecordCount()"></td>';
+                        html += '<td>' + (i + 1) + '</td>';
+                        html += '<td>' + (r.book_name || '-') + '</td>';
+                        html += '<td>' + (r.dept || '全部') + '</td>';
+                        html += '<td>' + (r.unit || '全部') + '</td>';
+                        html += '<td>' + r.year + '年' + r.month + '月</td>';
+                        html += '<td>' + r.staff_count + '</td>';
+                        html += '<td>' + parseFloat(r.total_income).toFixed(2) + '</td>';
+                        html += '<td style="color:#e71d36;">' + parseFloat(r.total_deduct).toFixed(2) + '</td>';
+                        html += '<td style="color:#2ec4b6;font-weight:600;">' + parseFloat(r.total_real).toFixed(2) + '</td>';
+                        html += '<td>' + (r.create_time || '-') + '</td>';
+                        html += '<td><button class="btn btn-sm btn-info" onclick="showDetail(' + r.id + ')">详情</button> <button class="btn btn-sm btn-danger" onclick="deleteRecord(' + r.id + ')">删除</button></td>';
+                        html += '</tr>';
+                    }
+                    $('#recordTable').html(html || '<tr><td colspan="11" class="text-center" style="color:#999;">暂无核算记录</td></tr>');
+                    renderPagination('#recordPagination', res.data.total, res.data.page, res.data.per_page, 'loadCalcRecords');
+                }
+            });
+        }
+
+        function showDetail(rid) {
+            apiGet('/api/salary_calc_record/' + rid, function(res) {
+                if (res.code === 200) {
+                    var data = res.data;
+                    _detailData = data.details || [];
+                    _detailPage = 1;
+                    $('#detailInfo').text((data.book_name || '') + ' ' + data.year + '年' + data.month + '月 共' + data.staff_count + '人');
+                    renderDetailTable();
+                    $('#detailArea').show();
+                    $('html,body').animate({ scrollTop: $('#detailArea').offset().top - 60 }, 300);
+                }
+            });
+        }
+
+        function renderDetailPage(page) {
+            _detailPage = page || 1;
+            renderDetailTable();
+        }
+
+        function renderDetailTable() {
+            if (!_detailData) return;
+            var details = _detailData;
+
+            var allItems = {};
+            for (var i = 0; i < details.length; i++) {
+                var iv = details[i].item_values || {};
+                for (var key in iv) { allItems[key] = true; }
+            }
+            var itemNames = Object.keys(allItems);
+
+            var thead = '<tr><th>姓名</th><th>性别</th><th>部门</th><th>单位</th>';
+            for (var j = 0; j < itemNames.length; j++) { thead += '<th>' + itemNames[j] + '</th>'; }
+            thead += '<th>应发合计</th><th>扣款合计</th><th>实发工资</th></tr>';
+            $('#detailThead').html(thead);
+
+            var totalPages = Math.ceil(details.length / _detailPerPage);
+            var startIdx = (_detailPage - 1) * _detailPerPage;
+            var endIdx = Math.min(startIdx + _detailPerPage, details.length);
+            var pageDetails = details.slice(startIdx, endIdx);
+
+            var tbody = '';
+            var totalIncome = 0, totalDeduct = 0, totalReal = 0;
+            for (var i = 0; i < pageDetails.length; i++) {
+                var d = pageDetails[i];
+                tbody += '<tr>';
+                tbody += '<td>' + (d.name || '-') + '</td>';
+                tbody += '<td>' + (d.gender || '-') + '</td>';
+                tbody += '<td>' + (d.dept || '-') + '</td>';
+                tbody += '<td>' + (d.unit || '-') + '</td>';
+                for (var j = 0; j < itemNames.length; j++) { tbody += '<td>' + (d.item_values[itemNames[j]] || 0) + '</td>'; }
+                tbody += '<td><strong>' + parseFloat(d.total_income).toFixed(2) + '</strong></td>';
+                tbody += '<td><strong style="color:#e71d36;">' + parseFloat(d.total_deduct).toFixed(2) + '</strong></td>';
+                tbody += '<td><strong style="color:#2ec4b6;font-size:15px;">' + parseFloat(d.real_salary).toFixed(2) + '</strong></td>';
+                tbody += '</tr>';
+                totalIncome += parseFloat(d.total_income);
+                totalDeduct += parseFloat(d.total_deduct);
+                totalReal += parseFloat(d.real_salary);
+            }
+            if (totalPages <= 1 && details.length > 0) {
+                tbody += '<tr style="background:#f8f9fa;font-weight:bold;">';
+                tbody += '<td>合计</td><td></td><td></td><td></td>';
+                for (var j = 0; j < itemNames.length; j++) {
+                    var sum = 0;
+                    for (var i = 0; i < details.length; i++) { sum += (details[i].item_values[itemNames[j]] || 0); }
+                    tbody += '<td>' + sum.toFixed(2) + '</td>';
+                }
+                tbody += '<td>' + totalIncome.toFixed(2) + '</td><td>' + totalDeduct.toFixed(2) + '</td><td style="color:#2ec4b6;">' + totalReal.toFixed(2) + '</td></tr>';
+            }
+            $('#detailTbody').html(tbody || '<tr><td colspan="' + (5 + itemNames.length + 3) + '" class="text-center" style="color:#999;">暂无数据</td></tr>');
+            renderPagination('#detailPagination', details.length, _detailPage, _detailPerPage, 'renderDetailPage');
+        }
+
+        function hideDetail() {
+            $('#detailArea').hide();
+            _detailData = null;
+            _detailPage = 1;
+        }
+
+        function deleteRecord(rid) {
+            if (!confirm('确定删除该核算记录？关联的薪资明细数据也将被删除！')) return;
+            apiDelete('/api/salary_calc_record/' + rid, function(res) {
+                if (res.code === 200) {
+                    showToast('删除成功', 'success');
+                    hideDetail();
+                    loadCalcRecords(1);
+                } else {
+                    showToast(res.msg, 'error');
+                }
+            });
+        }
+
+        function toggleSelectAllRecords(checkbox) {
+            var checkboxes = document.getElementsByClassName('record-checkbox');
+            for (var i = 0; i < checkboxes.length; i++) {
+                checkboxes[i].checked = checkbox.checked;
+            }
+            updateSelectedRecordCount();
+        }
+
+        function updateSelectedRecordCount() {
+            var checked = document.querySelectorAll('.record-checkbox:checked');
+            var count = checked.length;
+            document.getElementById('selectedRecordCount').textContent = count;
+            if (count > 0) {
+                document.getElementById('batchDeleteRecordBtn').style.display = 'inline-block';
+            } else {
+                document.getElementById('batchDeleteRecordBtn').style.display = 'none';
+            }
+            
+            var allCheckboxes = document.querySelectorAll('.record-checkbox');
+            var selectAllCheckbox = document.getElementById('selectAllRecords');
+            if (selectAllCheckbox) {
+                selectAllCheckbox.checked = count === allCheckboxes.length && count > 0;
+            }
+        }
+
+        function batchDeleteRecords() {
+            var checked = document.querySelectorAll('.record-checkbox:checked');
+            if (checked.length === 0) {
+                showToast('请先选择要删除的核算记录', 'warning');
+                return;
+            }
+            
+            if (!confirm('确定要删除选中的 ' + checked.length + ' 条核算记录吗？关联的薪资明细数据也将被删除！此操作不可恢复！')) {
+                return;
+            }
+            
+            var ids = [];
+            for (var i = 0; i < checked.length; i++) {
+                ids.push(parseInt(checked[i].value));
+            }
+            
+            apiPost('/api/salary_calc_record/batch_delete', {ids: ids}, function(res) {
+                if (res.code === 200) {
+                    showToast('批量删除成功，共删除 ' + res.data.deleted_count + ' 条', 'success');
+                    loadCalcRecords(1);
+                    document.getElementById('selectAllRecords').checked = false;
+                    updateSelectedRecordCount();
+                } else {
+                    showToast(res.msg || '批量删除失败', 'error');
+                }
+            });
+        }
+    </script>
+</body>
+</html>

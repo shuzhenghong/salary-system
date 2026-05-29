@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>工资项目配置 - 人员薪酬管理系统</title>
+    <link rel="stylesheet" href="css/style.css">
+    <script src="https://cdn.bootcdn.net/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+</head>
+<body>
+    <div class="layout">
+        <div class="sidebar"></div>
+        <div class="main-content">
+            <div class="top-header">
+                <span class="page-title">工资项目配置</span>
+                <div class="user-info">
+                    <span id="username"></span>
+                    <button class="btn btn-sm btn-outline" onclick="logout()">退出</button>
+                </div>
+            </div>
+            <div class="page-body">
+                <div class="card">
+                    <div class="toolbar">
+                        <label style="font-weight:500;">选择帐套：</label>
+                        <select class="form-control" id="bookSelect" onchange="loadItems()" style="min-width:200px;">
+                            <option value="">请选择帐套</option>
+                        </select>
+                        <button class="btn btn-primary" id="btnAdd" onclick="showAddModal()" style="display:none;">+ 新增工资项目</button>
+                    </div>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>排序</th>
+                                <th>项目名称</th>
+                                <th>类型</th>
+                                <th>筛选条件</th>
+                                <th>计算公式</th>
+                                <th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="itemTable"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="itemModal" style="display:none;">
+        <div class="modal-overlay">
+            <div class="modal" style="width:780px;">
+                <div class="modal-header">
+                    <h4 id="modalTitle">新增工资项目</h4>
+                    <button class="close-btn" onclick="closeModal()">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <input type="hidden" id="editId">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>项目名称 *</label>
+                            <input type="text" class="form-control" id="itemName" placeholder="如：基本工资、工龄补贴、绩效">
+                        </div>
+                        <div class="form-group">
+                            <label>项目类型</label>
+                            <select class="form-control" id="itemType">
+                                <option value="income">收入项</option>
+                                <option value="deduct">扣款项</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>排序号</label>
+                        <input type="number" class="form-control" id="sortNum" value="0" style="width:120px;">
+                    </div>
+
+                    <div class="form-group">
+                        <label>人员筛选条件（仅符合条件的员工参与该项目计算）</label>
+                        <div id="conditionArea"></div>
+                        <button class="btn btn-sm btn-outline mt-2" onclick="addCondition()">+ 添加条件</button>
+                    </div>
+
+                    <div class="form-group">
+                        <label>计算公式 *</label>
+                        <textarea class="form-control" id="calcFormula" rows="3" placeholder="如：work_years * 50&#10;如：if(zc==&quot;高级&quot;,800,if(zc==&quot;中级&quot;,400,200))"></textarea>
+                        <button class="btn btn-sm btn-info mt-2" onclick="testFormula()">测试公式</button>
+                        <span id="testResult" style="margin-left:8px;color:#2ec4b6;font-weight:500;"></span>
+                    </div>
+
+                    <div style="background:#f8f9fa;border-radius:8px;padding:16px;margin-top:12px;">
+                        <strong style="font-size:13px;">可用字段（点击插入公式）</strong>
+                        <div id="availableFields" style="margin-top:8px;"></div>
+
+                        <div style="margin-top:12px;border-top:1px solid #e9ecef;padding-top:12px;">
+                            <strong style="font-size:13px;">内置函数（悬停查看说明）</strong>
+                            <div id="availableFuncs" style="margin-top:8px;"></div>
+                        </div>
+
+                        <div style="margin-top:12px;border-top:1px solid #e9ecef;padding-top:12px;font-size:12px;color:#6c757d;line-height:1.8;">
+                            <strong>公式语法说明：</strong><br>
+                            <code>work_years * 50</code> — 工龄×50<br>
+                            <code>rank * 120 + 500</code> — 职级×120+500<br>
+                            <code>if(zc=="高级",800,if(zc=="中级",400,200))</code> — 条件判断<br>
+                            <code>base + work_years * 30</code> — 组合运算
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-outline" onclick="closeModal()">取消</button>
+                    <button class="btn btn-primary" onclick="saveItem()">保存</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/common.js"></script>
+    <script>
+        var _fieldMetas = [];
+        var _conditions = [];
+        initPage('salary_item');
+
+        var _funcDefs = [
+            { name: 'abs', syntax: 'abs(x)', desc: '返回x的绝对值', example: 'abs(-5) = 5' },
+            { name: 'round', syntax: 'round(x, n)', desc: '将x四舍五入到n位小数', example: 'round(3.456, 2) = 3.46' },
+            { name: 'min', syntax: 'min(a, b, ...)', desc: '返回多个值中的最小值', example: 'min(10, 20) = 10' },
+            { name: 'max', syntax: 'max(a, b, ...)', desc: '返回多个值中的最大值', example: 'max(10, 20) = 20' },
+            { name: 'int', syntax: 'int(x)', desc: '将x转换为整数（截断小数）', example: 'int(3.9) = 3' },
+            { name: 'ceil', syntax: 'ceil(x)', desc: '向上取整，返回不小于x的最小整数', example: 'ceil(3.2) = 4' },
+            { name: 'floor', syntax: 'floor(x)', desc: '向下取整，返回不大于x的最大整数', example: 'floor(3.8) = 3' },
+            { name: 'if', syntax: 'if(条件, 真值, 假值)', desc: '条件判断，条件为真返回真值，否则返回假值', example: 'if(work_years>10, 500, 200)' }
+        ];
+
+        loadBooks();
+        loadFieldMetas();
+
+        function loadFieldMetas() {
+            apiGet('/api/field_meta/all', function(res) {
+                if (res.code === 200) {
+                    var list = res.data || [];
+                    _fieldMetas = list.filter(function(f) { return f.is_active; });
+                    renderAvailableFields();
+                    renderAvailableFuncs();
+                }
+            });
+        }
+
+        function renderAvailableFields() {
+            var html = '';
+            html += '<span class="field-tag" onclick="insertField(\'work_years\')">work_years (工龄)</span> ';
+            html += '<span class="field-tag" onclick="insertField(\'taogai_years\')">taogai_years (套改年限)</span> ';
+            for (var i = 0; i < _fieldMetas.length; i++) {
+                var f = _fieldMetas[i];
+                html += '<span class="field-tag" onclick="insertField(\'' + f.field_code + '\')">' + f.field_code + ' (' + f.field_name + ')</span> ';
+            }
+            $('#availableFields').html(html);
+        }
+
+        function renderAvailableFuncs() {
+            var html = '';
+            for (var i = 0; i < _funcDefs.length; i++) {
+                var fn = _funcDefs[i];
+                html += '<span class="func-tag tooltip-wrap" onclick="insertFunc(\'' + fn.name + '\')">';
+                html += fn.name + '()';
+                html += '<span class="tooltip-text">';
+                html += '<strong>' + fn.syntax + '</strong><br>' + fn.desc + '<br>示例: ' + fn.example;
+                html += '</span>';
+                html += '</span> ';
+            }
+            $('#availableFuncs').html(html);
+        }
+
+        function insertField(code) {
+            var el = document.getElementById('calcFormula');
+            var start = el.selectionStart;
+            var end = el.selectionEnd;
+            var text = el.value;
+            el.value = text.substring(0, start) + code + text.substring(end);
+            el.selectionStart = el.selectionEnd = start + code.length;
+            el.focus();
+        }
+
+        function insertFunc(name) {
+            var el = document.getElementById('calcFormula');
+            var start = el.selectionStart;
+            var end = el.selectionEnd;
+            var text = el.value;
+            var insert = name + '()';
+            el.value = text.substring(0, start) + insert + text.substring(end);
+            el.selectionStart = start + name.length + 1;
+            el.selectionEnd = start + name.length + 1;
+            el.focus();
+        }
+
+        function loadBooks() {
+            apiGet('/api/salary_book', function(res) {
+                if (res.code === 200) {
+                    var html = '<option value="">请选择帐套</option>';
+                    for (var i = 0; i < res.data.length; i++) {
+                        html += '<option value="' + res.data[i].id + '">' + res.data[i].book_name + '</option>';
+                    }
+                    $('#bookSelect').html(html);
+                    var bid = getQueryParam('book_id');
+                    if (bid) {
+                        $('#bookSelect').val(bid);
+                        loadItems();
+                    }
+                }
+            });
+        }
+
+        function loadItems() {
+            var bookId = $('#bookSelect').val();
+            if (!bookId) {
+                $('#itemTable').html('');
+                $('#btnAdd').hide();
+                return;
+            }
+            $('#btnAdd').show();
+            apiGet('/api/salary_item/' + bookId, function(res) {
+                if (res.code === 200) {
+                    renderTable(res.data);
+                }
+            });
+        }
+
+        function renderTable(list) {
+            var html = '';
+            for (var i = 0; i < list.length; i++) {
+                var item = list[i];
+                var typeBadge = item.item_type === 'income' ? '<span class="badge badge-success">收入</span>' : '<span class="badge badge-danger">扣款</span>';
+                var condDesc = formatConditions(item.filter_condition);
+                html += '<tr>';
+                html += '<td>' + item.sort_num + '</td>';
+                html += '<td><strong>' + item.item_name + '</strong></td>';
+                html += '<td>' + typeBadge + '</td>';
+                html += '<td style="max-width:200px;word-break:break-all;font-size:12px;">' + (condDesc || '<span style="color:#999">无条件(全员)</span>') + '</td>';
+                html += '<td style="max-width:260px;word-break:break-all;font-size:12px;"><code>' + (item.calc_formula || '-') + '</code></td>';
+                html += '<td>';
+                html += '<button class="btn btn-sm btn-info" onclick="editItem(' + item.id + ')">编辑</button> ';
+                html += '<button class="btn btn-sm btn-danger" onclick="deleteItem(' + item.id + ')">删除</button>';
+                html += '</td></tr>';
+            }
+            $('#itemTable').html(html || '<tr><td colspan="6" class="text-center" style="color:#999;">暂无工资项目</td></tr>');
+        }
+
+        function formatConditions(conditions) {
+            if (!conditions || !conditions.length) return '';
+            var parts = [];
+            for (var i = 0; i < conditions.length; i++) {
+                var c = conditions[i];
+                parts.push(c.field + ' ' + c.operator + ' ' + c.value);
+            }
+            return parts.join(' 且 ');
+        }
+
+        function getAllFields() {
+            var fields = [
+                { code: 'name', name: '姓名', type: 'text' },
+                { code: 'gender', name: '性别', type: 'text' },
+                { code: 'dept', name: '部门', type: 'text' },
+                { code: 'unit', name: '单位', type: 'text' },
+                { code: 'work_years', name: '工龄', type: 'number' },
+                { code: 'taogai_years', name: '套改年限', type: 'number' }
+            ];
+            for (var i = 0; i < _fieldMetas.length; i++) {
+                var f = _fieldMetas[i];
+                var exists = fields.find(function(x) { return x.code === f.field_code; });
+                if (!exists) {
+                    fields.push({ code: f.field_code, name: f.field_name, type: f.field_type });
+                }
+            }
+            return fields;
+        }
+
+        function addCondition(data) {
+            var idx = _conditions.length;
+            _conditions.push(data || { field: '', operator: '==', value: '' });
+            renderConditions();
+        }
+
+        function removeCondition(idx) {
+            _conditions.splice(idx, 1);
+            renderConditions();
+        }
+
+        function renderConditions() {
+            var fields = getAllFields();
+            var html = '';
+            for (var i = 0; i < _conditions.length; i++) {
+                var c = _conditions[i];
+                html += '<div class="condition-row">';
+                html += '<select onchange="_conditions[' + i + '].field=this.value" style="min-width:120px;">';
+                html += '<option value="">选择字段</option>';
+                for (var j = 0; j < fields.length; j++) {
+                    var sel = c.field === fields[j].code ? ' selected' : '';
+                    html += '<option value="' + fields[j].code + '"' + sel + '>' + fields[j].name + '(' + fields[j].code + ')</option>';
+                }
+                html += '</select>';
+                html += '<select onchange="_conditions[' + i + '].operator=this.value" style="min-width:80px;">';
+                var ops = ['==', '!=', '>', '>=', '<', '<=', 'contains', 'between'];
+                for (var k = 0; k < ops.length; k++) {
+                    var osel = c.operator === ops[k] ? ' selected' : '';
+                    html += '<option value="' + ops[k] + '"' + osel + '>' + ops[k] + '</option>';
+                }
+                html += '</select>';
+                html += '<input type="text" value="' + (c.value || '') + '" onchange="_conditions[' + i + '].value=this.value" placeholder="值" style="min-width:100px;">';
+                html += '<button class="btn-remove" onclick="removeCondition(' + i + ')">移除</button>';
+                html += '</div>';
+            }
+            $('#conditionArea').html(html);
+        }
+
+        function showAddModal() {
+            $('#editId').val('');
+            $('#itemName').val('');
+            $('#itemType').val('income');
+            $('#sortNum').val('0');
+            $('#calcFormula').val('');
+            $('#testResult').text('');
+            _conditions = [];
+            renderConditions();
+            $('#modalTitle').text('新增工资项目');
+            $('#itemModal').show();
+        }
+
+        var _itemList = [];
+        function editItem(id) {
+            var bookId = $('#bookSelect').val();
+            apiGet('/api/salary_item/' + bookId, function(res) {
+                if (res.code === 200) {
+                    _itemList = res.data;
+                    var item = _itemList.find(function(x) { return x.id === id; });
+                    if (!item) return;
+                    $('#editId').val(item.id);
+                    $('#itemName').val(item.item_name);
+                    $('#itemType').val(item.item_type);
+                    $('#sortNum').val(item.sort_num);
+                    $('#calcFormula').val(item.calc_formula);
+                    $('#testResult').text('');
+                    _conditions = item.filter_condition || [];
+                    renderConditions();
+                    $('#modalTitle').text('编辑工资项目');
+                    $('#itemModal').show();
+                }
+            });
+        }
+
+        function closeModal() { $('#itemModal').hide(); }
+
+        function saveItem() {
+            var id = $('#editId').val();
+            var bookId = $('#bookSelect').val();
+            var data = {
+                book_id: parseInt(bookId),
+                item_name: $('#itemName').val().trim(),
+                item_type: $('#itemType').val(),
+                sort_num: parseInt($('#sortNum').val()) || 0,
+                filter_condition: _conditions,
+                calc_formula: $('#calcFormula').val().trim()
+            };
+            if (!data.item_name) { showToast('项目名称不能为空', 'error'); return; }
+            if (!data.calc_formula) { showToast('请输入计算公式', 'error'); return; }
+
+            if (id) {
+                apiPut('/api/salary_item/' + id, data, function(res) {
+                    if (res.code === 200) {
+                        showToast('更新成功', 'success');
+                        closeModal();
+                        loadItems();
+                    } else {
+                        showToast(res.msg, 'error');
+                    }
+                });
+            } else {
+                apiPost('/api/salary_item', data, function(res) {
+                    if (res.code === 200) {
+                        showToast('添加成功', 'success');
+                        closeModal();
+                        loadItems();
+                    } else {
+                        showToast(res.msg, 'error');
+                    }
+                });
+            }
+        }
+
+        function testFormula() {
+            var formula = $('#calcFormula').val().trim();
+            if (!formula) { showToast('请输入公式', 'error'); return; }
+            var testCtx = { work_years: 5, taogai_years: 4, name: '测试', gender: '男', dept: '测试部', unit: '测试单位' };
+            for (var i = 0; i < _fieldMetas.length; i++) {
+                var f = _fieldMetas[i];
+                if (f.field_type === 'number') {
+                    testCtx[f.field_code] = 10;
+                } else {
+                    testCtx[f.field_code] = '测试值';
+                }
+            }
+            apiPost('/api/salary_item/test_formula', {
+                calc_formula: formula,
+                test_context: testCtx
+            }, function(res) {
+                if (res.code === 200) {
+                    $('#testResult').text('测试结果 = ' + res.data.result).css('color', '#2ec4b6');
+                } else {
+                    $('#testResult').text('错误: ' + res.msg).css('color', '#e71d36');
+                }
+            });
+        }
+
+        function deleteItem(id) {
+            if (!confirm('确定删除该工资项目？')) return;
+            apiDelete('/api/salary_item/' + id, function(res) {
+                if (res.code === 200) {
+                    showToast('删除成功', 'success');
+                    loadItems();
+                }
+            });
+        }
+    </script>
+</body>
+</html>

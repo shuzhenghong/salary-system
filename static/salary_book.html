@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>薪酬帐套 - 人员薪酬管理系统</title>
+    <link rel="stylesheet" href="css/style.css">
+    <script src="https://cdn.bootcdn.net/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+</head>
+<body>
+    <div class="layout">
+        <div class="sidebar"></div>
+        <div class="main-content">
+            <div class="top-header">
+                <span class="page-title">薪酬帐套管理</span>
+                <div class="user-info">
+                    <span id="username"></span>
+                    <button class="btn btn-sm btn-outline" onclick="logout()">退出</button>
+                </div>
+            </div>
+            <div class="page-body">
+                <div class="card">
+                    <div class="toolbar">
+                        <button class="btn btn-primary" onclick="showAddModal()">+ 新建帐套</button>
+                        <button class="btn btn-outline" onclick="exportBooks()">导出CSV</button>
+                        <button class="btn btn-primary" onclick="showImportModal()">导入CSV</button>
+                    </div>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>序号</th>
+                                <th>帐套名称</th>
+                                <th>备注</th>
+                                <th>创建时间</th>
+                                <th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="bookTable"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="bookModal" style="display:none;">
+        <div class="modal-overlay">
+            <div class="modal">
+                <div class="modal-header">
+                    <h4 id="modalTitle">新建帐套</h4>
+                    <button class="close-btn" onclick="closeModal()">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <input type="hidden" id="editId">
+                    <div class="form-group">
+                        <label>帐套名称 *</label>
+                        <input type="text" class="form-control" id="bookName" placeholder="如在编人员帐套、合同工帐套">
+                    </div>
+                    <div class="form-group">
+                        <label>备注</label>
+                        <textarea class="form-control" id="bookRemark" rows="3" placeholder="可选"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-outline" onclick="closeModal()">取消</button>
+                    <button class="btn btn-primary" onclick="saveBook()">保存</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="importModal" style="display:none;">
+        <div class="modal-overlay">
+            <div class="modal" style="width:500px;">
+                <div class="modal-header">
+                    <h4>导入帐套配置</h4>
+                    <button class="close-btn" onclick="closeImportModal()">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label>选择CSV文件</label>
+                        <input type="file" class="form-control" id="importFile" accept=".csv" onchange="handleFileSelect()">
+                    </div>
+                    <div class="form-group" id="importPreviewGroup" style="display:none;">
+                        <label>预览数据</label>
+                        <div id="importPreview" style="max-height:200px;overflow-y:auto;font-size:12px;"></div>
+                    </div>
+                    <div class="form-group">
+                        <label>
+                            <input type="checkbox" id="importOverwrite" checked> 覆盖已存在的帐套（按帐套名称匹配）
+                        </label>
+                    </div>
+                    <div style="font-size:12px;color:#666;margin-top:8px;">
+                        <strong>说明：</strong>CSV文件包含帐套信息、帐套字段配置和工资项目配置。
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-outline" onclick="closeImportModal()">取消</button>
+                    <button class="btn btn-primary" onclick="doImport()">开始导入</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/common.js"></script>
+    <script>
+        initPage('salary_book');
+        loadBooks();
+
+        function loadBooks() {
+            apiGet('/api/salary_book', function(res) {
+                if (res.code === 200) {
+                    renderTable(res.data);
+                }
+            });
+        }
+
+        function renderTable(list) {
+            var html = '';
+            for (var i = 0; i < list.length; i++) {
+                var b = list[i];
+                html += '<tr>';
+                html += '<td>' + (i + 1) + '</td>';
+                html += '<td><strong>' + b.book_name + '</strong></td>';
+                html += '<td>' + (b.remark || '-') + '</td>';
+                html += '<td>' + (b.create_time || '-') + '</td>';
+                html += '<td>';
+                html += '<button class="btn btn-sm btn-info" onclick="editBook(' + b.id + ')">编辑</button> ';
+                html += '<a href="salary_item_config.html?book_id=' + b.id + '" class="btn btn-sm btn-success">配置工资项目</a> ';
+                html += '<button class="btn btn-sm btn-danger" onclick="deleteBook(' + b.id + ')">删除</button>';
+                html += '</td></tr>';
+            }
+            $('#bookTable').html(html || '<tr><td colspan="5" class="text-center" style="color:#999;">暂无帐套</td></tr>');
+        }
+
+        function showAddModal() {
+            $('#editId').val('');
+            $('#bookName').val('');
+            $('#bookRemark').val('');
+            $('#modalTitle').text('新建帐套');
+            $('#bookModal').show();
+        }
+
+        var _bookList = [];
+        function editBook(id) {
+            apiGet('/api/salary_book', function(res) {
+                if (res.code === 200) {
+                    _bookList = res.data;
+                    var b = _bookList.find(function(item) { return item.id === id; });
+                    if (!b) return;
+                    $('#editId').val(b.id);
+                    $('#bookName').val(b.book_name);
+                    $('#bookRemark').val(b.remark);
+                    $('#modalTitle').text('编辑帐套');
+                    $('#bookModal').show();
+                }
+            });
+        }
+
+        function closeModal() { $('#bookModal').hide(); }
+
+        function saveBook() {
+            var id = $('#editId').val();
+            var data = {
+                book_name: $('#bookName').val().trim(),
+                remark: $('#bookRemark').val().trim()
+            };
+            if (!data.book_name) { showToast('帐套名称不能为空', 'error'); return; }
+
+            if (id) {
+                apiPut('/api/salary_book/' + id, data, function(res) {
+                    if (res.code === 200) {
+                        showToast('更新成功', 'success');
+                        closeModal();
+                        loadBooks();
+                    } else {
+                        showToast(res.msg, 'error');
+                    }
+                });
+            } else {
+                apiPost('/api/salary_book', data, function(res) {
+                    if (res.code === 200) {
+                        showToast('添加成功', 'success');
+                        closeModal();
+                        loadBooks();
+                    } else {
+                        showToast(res.msg, 'error');
+                    }
+                });
+            }
+        }
+
+        function deleteBook(id) {
+            if (!confirm('确定删除该帐套？')) return;
+            apiDelete('/api/salary_book/' + id, function(res) {
+                if (res.code === 200) {
+                    showToast('删除成功', 'success');
+                    loadBooks();
+                }
+            });
+        }
+
+        var _importData = null;
+
+        function exportBooks() {
+            showToast('正在导出...', 'info');
+            var xhr = new XMLHttpRequest();
+            xhr.open('GET', '/api/salary_book/export', true);
+            xhr.responseType = 'blob';
+            xhr.withCredentials = true;
+            var csrfToken = '';
+            try { csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || ''; } catch(e) {}
+            if (!csrfToken) { try { csrfToken = sessionStorage.getItem('_csrf_token') || ''; } catch(e) {} }
+            if (csrfToken) { xhr.setRequestHeader('X-CSRFToken', csrfToken); }
+            xhr.onload = function() {
+                if (xhr.status === 200) {
+                    var contentType = xhr.getResponseHeader('Content-Type') || '';
+                    if (contentType.indexOf('json') !== -1) {
+                        var reader = new FileReader();
+                        reader.onload = function() {
+                            try {
+                                var err = JSON.parse(reader.result);
+                                showToast(err.msg || '导出失败', 'error');
+                            } catch(e) {
+                                showToast('导出失败: ' + reader.result.substring(0, 100), 'error');
+                            }
+                        };
+                        reader.readAsText(xhr.response);
+                        return;
+                    }
+                    var blob = new Blob([xhr.response], { type: 'text/csv;charset=utf-8' });
+                    var url = URL.createObjectURL(blob);
+                    var a = document.createElement('a');
+                    a.href = url;
+                    a.download = 'salary_books_' + new Date().toISOString().slice(0, 10) + '.csv';
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                    showToast('导出成功', 'success');
+                } else if (xhr.status === 401) {
+                    showToast('登录已过期，请重新登录', 'error');
+                    setTimeout(function() { window.location.href = '/'; }, 1500);
+                } else if (xhr.status === 403) {
+                    showToast('无权限操作，需要管理员权限', 'error');
+                } else {
+                    var reader = new FileReader();
+                    reader.onload = function() {
+                        try {
+                            var err = JSON.parse(reader.result);
+                            showToast(err.msg || '导出失败，状态码: ' + xhr.status, 'error');
+                        } catch(e) {
+                            showToast('导出失败，状态码: ' + xhr.status, 'error');
+                        }
+                    };
+                    reader.readAsText(xhr.response);
+                }
+            };
+            xhr.onerror = function() {
+                showToast('网络错误，导出失败', 'error');
+            };
+            xhr.send();
+        }
+
+        function showImportModal() {
+            $('#importFile').val('');
+            $('#importPreviewGroup').hide();
+            $('#importPreview').html('');
+            $('#importOverwrite').prop('checked', true);
+            _importData = null;
+            $('#importModal').show();
+        }
+
+        function closeImportModal() {
+            $('#importModal').hide();
+        }
+
+        function handleFileSelect() {
+            var file = $('#importFile')[0].files[0];
+            if (!file) return;
+            
+            if (!file.name.endsWith('.csv')) {
+                showToast('请选择CSV文件', 'error');
+                return;
+            }
+            
+            var reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    var lines = e.target.result.split('\n');
+                    var books = [];
+                    var items = 0;
+                    var salaryItems = 0;
+                    
+                    for (var i = 1; i < lines.length; i++) {
+                        var line = lines[i].trim();
+                        if (!line) continue;
+                        var cols = line.split(',');
+                        var type = (cols[0] || '').replace(/"/g, '').trim();
+                        
+                        if (type === 'book') {
+                            books.push((cols[1] || '').replace(/"/g, '').trim());
+                        } else if (type === 'item') {
+                            items++;
+                        } else if (type === 'salary_item') {
+                            salaryItems++;
+                        }
+                    }
+                    
+                    var previewHtml = '<div style="margin-bottom:8px;"><strong>帐套 (' + books.length + '个):</strong></div>';
+                    for (var j = 0; j < Math.min(books.length, 10); j++) {
+                        previewHtml += '<div style="margin-left:16px;">- ' + books[j] + '</div>';
+                    }
+                    if (books.length > 10) {
+                        previewHtml += '<div style="margin-left:16px;color:#888;">... 等' + books.length + '个</div>';
+                    }
+                    previewHtml += '<div style="margin:8px 0 0 0;"><strong>帐套项目:</strong> ' + items + ' 项</div>';
+                    previewHtml += '<div style="margin:4px 0 0 0;"><strong>工资项目:</strong> ' + salaryItems + ' 项</div>';
+                    
+                    _importData = e.target.result;
+                    $('#importPreview').html(previewHtml);
+                    $('#importPreviewGroup').show();
+                } catch (err) {
+                    showToast('CSV文件解析失败: ' + err.message, 'error');
+                    _importData = null;
+                }
+            };
+            reader.readAsText(file, 'UTF-8');
+        }
+
+        function doImport() {
+            var file = $('#importFile')[0].files[0];
+            if (!file) {
+                showToast('请先选择要导入的CSV文件', 'error');
+                return;
+            }
+            
+            var formData = new FormData();
+            formData.append('file', file);
+            formData.append('overwrite', $('#importOverwrite').is('checked'));
+            
+            $.ajax({
+                url: '/api/salary_book/import',
+                type: 'POST',
+                data: formData,
+                processData: false,
+                contentType: false,
+                headers: { 'X-CSRFToken': sessionStorage.getItem('_csrf_token') || '' },
+                success: function(res) {
+                    if (res.code === 200) {
+                        showToast(res.msg, 'success');
+                        closeImportModal();
+                        loadBooks();
+                    } else {
+                        showToast(res.msg, 'error');
+                    }
+                },
+                error: function(xhr) {
+                    try {
+                        var err = JSON.parse(xhr.responseText);
+                        showToast(err.msg || '导入失败', 'error');
+                    } catch(e) {
+                        showToast('导入失败，请检查文件格式', 'error');
+                    }
+                }
+            });
+        }
+    </script>
+</body>
+</html>

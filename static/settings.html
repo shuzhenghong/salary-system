@@ -1,0 +1,1227 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>系统设置 - 人员薪酬管理系统</title>
+    <link rel="stylesheet" href="css/style.css">
+    <script src="https://cdn.bootcdn.net/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+</head>
+<body>
+    <div class="layout">
+        <div class="sidebar"></div>
+        <div class="main-content">
+            <div class="top-header">
+                <span class="page-title">系统设置</span>
+                <div class="user-info">
+                    <span id="username"></span>
+                    <button class="btn btn-sm btn-outline" onclick="logout()">退出</button>
+                </div>
+            </div>
+            <div class="page-body">
+                <div class="tab-bar">
+                    <div class="tab-item active" onclick="switchTab('userTab')">用户管理</div>
+                    <div class="tab-item" onclick="switchTab('backupTab')">数据备份</div>
+                    <div class="tab-item" onclick="switchTab('fieldTab')">字段配置</div>
+                    <div class="tab-item" onclick="switchTab('logTab')">系统日志</div>
+                </div>
+
+                <div id="userTab" class="tab-content active">
+                    <div class="card">
+                        <div class="toolbar">
+                            <button class="btn btn-primary" onclick="showAddUserModal()">+ 新增用户</button>
+                        </div>
+                        <table>
+                            <thead>
+                                <tr><th>序号</th><th>用户名</th><th>角色</th><th>创建时间</th><th>操作</th></tr>
+                            </thead>
+                            <tbody id="userTable"></tbody>
+                        </table>
+                        <div class="pagination" id="userPagination"></div>
+                    </div>
+                </div>
+
+                <div id="backupTab" class="tab-content">
+                    <div class="card">
+                        <div class="card-title">数据备份与恢复</div>
+                        <div class="toolbar">
+                            <button class="btn btn-primary" onclick="doBackup()">立即备份</button>
+                        </div>
+                        <table>
+                            <thead>
+                                <tr><th>备份文件</th><th>大小</th><th>备份时间</th><th>操作</th></tr>
+                            </thead>
+                            <tbody id="backupTable"></tbody>
+                        </table>
+                        <div class="pagination" id="backupPagination"></div>
+                    </div>
+                </div>
+
+                <div id="fieldTab" class="tab-content">
+                    <div class="card">
+                        <div class="toolbar">
+                            <button class="btn btn-primary" onclick="showAddFieldModal()">+ 新增字段</button>
+                            <button class="btn btn-success" onclick="showDisplayConfig()">显示配置</button>
+                            <button class="btn btn-warning" onclick="showImportModal()">导入字段</button>
+                            <button class="btn btn-outline" onclick="exportFields()">导出字段</button>
+                        </div>
+                        <table>
+                            <thead>
+                                <tr><th>序号</th><th>字段编码</th><th>字段名称</th><th>字段类型</th><th>默认值</th><th>下拉选项</th><th>联动字段</th><th>列表显示</th><th>排序</th><th>状态</th><th>操作</th></tr>
+                            </thead>
+                            <tbody id="fieldTable"></tbody>
+                        </table>
+                        <div class="pagination" id="fieldPagination"></div>
+                    </div>
+                </div>
+
+                <div id="logTab" class="tab-content">
+                    <div class="card">
+                        <div class="toolbar">
+                            <label style="font-weight:500;">操作类型：</label>
+                            <input type="text" class="form-control" id="logAction" placeholder="搜索操作" style="min-width:120px;">
+                            <button class="btn btn-primary" onclick="loadLogs(1)">查询</button>
+                            <div style="flex:1;"></div>
+                            <label style="font-weight:500;">日志保留天数：</label>
+                            <input type="number" class="form-control" id="logRetainDays" style="width:80px;" min="1">
+                            <button class="btn btn-success" onclick="saveLogSettings()">保存</button>
+                        </div>
+                        <table>
+                            <thead>
+                                <tr><th>序号</th><th>用户</th><th>操作</th><th>详情</th><th>IP</th><th>时间</th></tr>
+                            </thead>
+                            <tbody id="logTable"></tbody>
+                        </table>
+                        <div class="pagination" id="logPagination"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="userModal" style="display:none;">
+        <div class="modal-overlay">
+            <div class="modal">
+                <div class="modal-header">
+                    <h4 id="userModalTitle">新增用户</h4>
+                    <button class="close-btn" onclick="closeUserModal()">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <input type="hidden" id="uEditId">
+                    <div class="form-group">
+                        <label>用户名 *</label>
+                        <input type="text" class="form-control" id="uUsername">
+                    </div>
+                    <div class="form-group">
+                        <label>密码 *</label>
+                        <input type="password" class="form-control" id="uPassword">
+                    </div>
+                    <div class="form-group">
+                        <label>角色</label>
+                        <select class="form-control" id="uRole">
+                            <option value="operator">操作员</option>
+                            <option value="admin">管理员</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-outline" onclick="closeUserModal()">取消</button>
+                    <button class="btn btn-primary" onclick="saveUser()">保存</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="fieldModal" style="display:none;">
+        <div class="modal-overlay">
+            <div class="modal" style="width:640px;">
+                <div class="modal-header">
+                    <h4 id="fieldModalTitle">新增字段</h4>
+                    <button class="close-btn" onclick="closeFieldModal()">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <input type="hidden" id="fEditId">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>字段编码（英文，公式引用用）</label>
+                            <input type="text" class="form-control" id="fCode" placeholder="如：zc, rank, edu">
+                        </div>
+                        <div class="form-group">
+                            <label>字段名称</label>
+                            <input type="text" class="form-control" id="fName" placeholder="如：职称、职级、学历">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>字段类型</label>
+                            <select class="form-control" id="fType" onchange="onFieldTypeChange()">
+                                <option value="text">文本</option>
+                                <option value="number">数字</option>
+                                <option value="select">下拉选项</option>
+                                <option value="date">日期</option>
+                                <option value="dateym">日期年月</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>默认值</label>
+                            <input type="text" class="form-control" id="fDefault" placeholder="可选">
+                        </div>
+                    </div>
+                    <div class="form-group" id="fOptionsGroup" style="display:none;">
+                        <label>下拉选项（逗号分隔）</label>
+                        <input type="text" class="form-control" id="fOptions" placeholder="如：初级,中级,高级">
+                    </div>
+                    <div class="form-group">
+                        <label>联动字段（选择上级字段）</label>
+                        <select class="form-control" id="fLinkField" onchange="onLinkFieldChange()">
+                            <option value="">无联动</option>
+                        </select>
+                    </div>
+                    <div class="form-group" id="linkConfigGroup" style="display:none;">
+                        <label>联动映射配置</label>
+                        <p class="hint-text" style="font-size:12px;color:#888;margin-bottom:8px;">为联动字段的每个值配置当前字段要显示的选项</p>
+                        <div style="margin-bottom:10px;display:flex;gap:8px;align-items:center;">
+                            <input type="text" class="form-control" id="linkSearch" placeholder="搜索联动字段值..." style="max-width:250px;" onkeyup="filterLinkOptions()">
+                            <button class="btn btn-sm btn-outline" onclick="batchSetAll()">批量设置全部</button>
+                            <button class="btn btn-sm btn-outline" onclick="clearAllLinkOptions()">清空全部</button>
+                        </div>
+                        <div style="max-height:350px;overflow-y:auto;border:1px solid #e9ecef;">
+                            <table class="link-table" style="width:100%;border-collapse:collapse;">
+                                <thead style="background:#f5f5f5;position:sticky;top:0;z-index:1;">
+                                    <tr>
+                                        <th style="padding:8px;border:1px solid #e9ecef;width:35%;">联动字段值</th>
+                                        <th style="padding:8px;border:1px solid #e9ecef;">当前字段显示选项（逗号分隔）</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="linkConfigBody"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                    
+                    <!-- 批量设置模态框 -->
+                    <div id="batchSetModal" style="display:none;">
+                        <div class="modal-overlay">
+                            <div class="modal" style="width:500px;">
+                                <div class="modal-header">
+                                    <h4>批量设置选项</h4>
+                                    <button class="close-btn" onclick="closeBatchSetModal()">&times;</button>
+                                </div>
+                                <div class="modal-body">
+                                    <div class="form-group">
+                                        <label>选择要设置的选项（从当前字段选项中选择）</label>
+                                        <div id="batchOptionsArea" style="max-height:200px;overflow-y:auto;padding:8px;border:1px solid #e9ecef;border-radius:4px;">
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="modal-footer">
+                                    <button class="btn btn-outline" onclick="closeBatchSetModal()">取消</button>
+                                    <button class="btn btn-primary" onclick="confirmBatchSet()">确认设置</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>列表显示</label>
+                            <select class="form-control" id="fShowInList">
+                                <option value="0">不显示</option>
+                                <option value="1">显示</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>排序号</label>
+                            <input type="number" class="form-control" id="fSortNum" value="0">
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-outline" onclick="closeFieldModal()">取消</button>
+                    <button class="btn btn-primary" onclick="saveField()">保存</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="displayModal" style="display:none;">
+        <div class="modal-overlay">
+            <div class="modal" style="width:640px;">
+                <div class="modal-header">
+                    <h4>列表显示配置</h4>
+                    <button class="close-btn" onclick="closeDisplayModal()">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <p style="color:#6c757d;font-size:13px;margin-bottom:16px;">勾选要在人员档案列表中显示的字段，并设置显示顺序</p>
+                    <div id="displayFields"></div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-outline" onclick="closeDisplayModal()">取消</button>
+                    <button class="btn btn-primary" onclick="saveDisplayConfig()">保存</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="resetPwdModal" style="display:none;">
+        <div class="modal-overlay">
+            <div class="modal" style="width:400px;">
+                <div class="modal-header">
+                    <h4>重置密码</h4>
+                    <button class="close-btn" onclick="closeResetPwdModal()">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <input type="hidden" id="resetUid">
+                    <div class="form-group">
+                        <label>新密码</label>
+                        <input type="password" class="form-control" id="resetNewPwd">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-outline" onclick="closeResetPwdModal()">取消</button>
+                    <button class="btn btn-primary" onclick="doResetPassword()">确认重置</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="importModal" style="display:none;">
+        <div class="modal-overlay">
+            <div class="modal" style="width:700px;">
+                <div class="modal-header">
+                    <h4>导入字段配置</h4>
+                    <button class="close-btn" onclick="closeImportModal()">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label>导入方式</label>
+                        <select class="form-control" id="importType" onchange="onImportTypeChange()">
+                            <option value="csv">CSV格式（Excel可编辑）</option>
+                            <option value="json">JSON格式</option>
+                        </select>
+                    </div>
+                    <div class="form-group" id="downloadTemplateGroup">
+                        <label>模板下载</label>
+                        <button class="btn btn-outline" onclick="downloadCsvTemplate()" style="width:100%;">下载CSV导入模板</button>
+                    </div>
+                    <div class="form-group" id="csvFileGroup">
+                        <label>选择CSV文件</label>
+                        <input type="file" class="form-control" id="csvFileInput" accept=".csv" onchange="onCsvFileSelected(event)">
+                        <p style="font-size:12px;color:#888;margin-top:6px;">支持格式：字段编码,字段名称,字段类型,默认值,下拉选项,联动字段,联动配置(JSON格式),排序号,是否启用,列表显示</p>
+                    </div>
+                    <div class="form-group" id="jsonContentGroup" style="display:none;">
+                        <label>导入内容</label>
+                        <p style="font-size:12px;color:#888;margin-bottom:8px;">JSON格式：直接粘贴导出的JSON内容</p>
+                        <textarea class="form-control" id="importContent" rows="12" placeholder="粘贴导入内容..."></textarea>
+                    </div>
+                    <div class="form-group" id="csvPreviewGroup" style="display:none;">
+                        <label>数据预览（前5行）</label>
+                        <div style="max-height:200px;overflow:auto;border:1px solid #ddd;border-radius:4px;">
+                            <table style="width:100%;font-size:12px;table-layout:fixed;">
+                                <thead>
+                                    <tr style="background:#f5f5f5;position:sticky;top:0;"><th style="width:25%;">字段编码</th><th style="width:30%;">字段名称</th><th style="width:20%;">字段类型</th><th style="width:25%;">联动字段</th></tr>
+                                </thead>
+                                <tbody id="csvPreviewBody"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label style="display:flex;align-items:center;gap:6px;">
+                            <input type="checkbox" id="importOverwrite"> 覆盖已存在的字段（不勾选则跳过）
+                        </label>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-outline" onclick="closeImportModal()">取消</button>
+                    <button class="btn btn-primary" onclick="doImport()">确认导入</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/common.js"></script>
+    <script>
+        initPage('settings');
+        loadUsers();
+        loadBackups();
+        loadFields();
+        loadLogs(1);
+        loadSettings();
+
+        function toggleOptionsDisplay(el) {
+            var isExpanded = el.getAttribute('data-expanded') === 'true';
+            var shortSpan = el.querySelector('.opt-short');
+            var fullSpan = el.querySelector('.opt-full');
+            
+            if (shortSpan && fullSpan) {
+                if (isExpanded) {
+                    shortSpan.style.display = 'inline';
+                    fullSpan.style.display = 'none';
+                    el.setAttribute('data-expanded', 'false');
+                } else {
+                    shortSpan.style.display = 'none';
+                    fullSpan.style.display = 'inline';
+                    el.setAttribute('data-expanded', 'true');
+                }
+            }
+        }
+
+        function parseCsvLine(line) {
+            var result = [];
+            var current = '';
+            var inQuotes = false;
+            for (var i = 0; i < line.length; i++) {
+                var char = line[i];
+                if (char === '"' && inQuotes && line[i + 1] === '"') {
+                    current += '"';
+                    i++;
+                } else if (char === '"') {
+                    inQuotes = !inQuotes;
+                } else if (char === ',' && !inQuotes) {
+                    result.push(current);
+                    current = '';
+                } else {
+                    current += char;
+                }
+            }
+            result.push(current);
+            return result;
+        }
+
+        function switchTab(tabId) {
+            $('.tab-item').removeClass('active');
+            $('.tab-content').removeClass('active');
+            $('#' + tabId).addClass('active');
+            var idx = ['userTab', 'backupTab', 'fieldTab', 'logTab'].indexOf(tabId);
+            $('.tab-item').eq(idx).addClass('active');
+        }
+
+        function loadUsers(page) {
+            var page = page || 1;
+            apiGet('/api/user/list?page=' + page, function(res) {
+                if (res.code === 200) {
+                    var html = '';
+                    for (var i = 0; i < res.data.list.length; i++) {
+                        var u = res.data.list[i];
+                        var roleText = u.role === 'admin' ? '<span class="badge badge-info">管理员</span>' : '<span class="badge badge-success">操作员</span>';
+                        html += '<tr>';
+                        html += '<td>' + u.id + '</td>';
+                        html += '<td>' + u.username + '</td>';
+                        html += '<td>' + roleText + '</td>';
+                        html += '<td>' + (u.create_time || '-') + '</td>';
+                        html += '<td>';
+                        html += '<button class="btn btn-sm btn-warning" onclick="editUser(' + u.id + ',\'' + u.username + '\',\'' + u.role + '\')">编辑</button> ';
+                        html += '<button class="btn btn-sm btn-info" onclick="resetPassword(' + u.id + ')">重置密码</button> ';
+                        if (u.role !== 'admin') {
+                            html += '<button class="btn btn-sm btn-danger" onclick="deleteUser(' + u.id + ')">删除</button>';
+                        }
+                        html += '</td></tr>';
+                    }
+                    $('#userTable').html(html || '<tr><td colspan="5" class="text-center" style="color:#999;">暂无用户</td></tr>');
+                    renderPagination('#userPagination', res.data.total, res.data.page, res.data.per_page, 'loadUsers');
+                }
+            });
+        }
+
+        function showAddUserModal() {
+            $('#uUsername').val('');
+            $('#uPassword').val('');
+            $('#uRole').val('operator');
+            $('#userModalTitle').text('新增用户');
+            $('#userModal').show();
+        }
+
+        function closeUserModal() { $('#userModal').hide(); }
+
+        function editUser(id, username, role) {
+            $('#uEditId').val(id);
+            $('#uUsername').val(username).prop('disabled', true);
+            $('#uPassword').val('').prop('placeholder', '留空则不修改');
+            $('#uRole').val(role);
+            $('#userModalTitle').text('编辑用户');
+            $('#userModal').show();
+        }
+
+        function saveUser() {
+            var editId = $('#uEditId').val();
+            var data = {
+                username: $('#uUsername').val().trim(),
+                role: $('#uRole').val()
+            };
+            var password = $('#uPassword').val().trim();
+            if (!data.username) { showToast('用户名不能为空', 'error'); return; }
+            if (editId) {
+                if (password) data.password = password;
+                apiPut('/api/user/' + editId, data, function(res) {
+                    if (res.code === 200) { showToast('更新成功', 'success'); closeUserModal(); loadUsers(); }
+                    else { showToast(res.msg, 'error'); }
+                });
+            } else {
+                if (!password) { showToast('密码不能为空', 'error'); return; }
+                data.password = password;
+                apiPost('/api/user', data, function(res) {
+                    if (res.code === 200) { showToast('添加成功', 'success'); closeUserModal(); loadUsers(); }
+                    else { showToast(res.msg, 'error'); }
+                });
+            }
+        }
+
+        function deleteUser(uid) {
+            if (!confirm('确定删除该用户？')) return;
+            apiDelete('/api/user/' + uid, function(res) {
+                if (res.code === 200) {
+                    showToast('删除成功', 'success');
+                    loadUsers();
+                } else {
+                    showToast(res.msg, 'error');
+                }
+            });
+        }
+
+        function resetPassword(uid) {
+            $('#resetUid').val(uid);
+            $('#resetNewPwd').val('');
+            $('#resetPwdModal').show();
+        }
+
+        function closeResetPwdModal() { $('#resetPwdModal').hide(); }
+
+        function doResetPassword() {
+            var uid = $('#resetUid').val();
+            var newPwd = $('#resetNewPwd').val().trim();
+            if (!newPwd) { showToast('新密码不能为空', 'error'); return; }
+            apiPost('/api/user/reset_password', { user_id: parseInt(uid), new_password: newPwd }, function(res) {
+                if (res.code === 200) {
+                    showToast('密码重置成功', 'success');
+                    closeResetPwdModal();
+                } else {
+                    showToast(res.msg, 'error');
+                }
+            });
+        }
+
+        function changePassword() {
+            var oldPwd = $('#oldPwd').val();
+            var newPwd = $('#newPwd').val();
+            var confirmPwd = $('#confirmPwd').val();
+            if (!oldPwd || !newPwd) { showToast('请填写完整', 'error'); return; }
+            if (newPwd !== confirmPwd) { showToast('两次密码不一致', 'error'); return; }
+            apiPost('/api/user/change_password', { old_password: oldPwd, new_password: newPwd }, function(res) {
+                if (res.code === 200) {
+                    showToast('密码修改成功', 'success');
+                    $('#oldPwd').val('');
+                    $('#newPwd').val('');
+                    $('#confirmPwd').val('');
+                } else {
+                    showToast(res.msg, 'error');
+                }
+            });
+        }
+
+        function loadBackups(page) {
+            var page = page || 1;
+            apiGet('/api/backup/list?page=' + page, function(res) {
+                if (res.code === 200) {
+                    var html = '';
+                    for (var i = 0; i < res.data.list.length; i++) {
+                        var b = res.data.list[i];
+                        html += '<tr>';
+                        html += '<td>' + b.name + '</td>';
+                        html += '<td>' + formatFileSize(b.size) + '</td>';
+                        html += '<td>' + b.time + '</td>';
+                        html += '<td>';
+                        html += '<button class="btn btn-sm btn-warning" onclick="doRestore(\'' + b.name + '\')">恢复</button> ';
+                        html += '<button class="btn btn-sm btn-info" onclick="downloadBackup(\'' + b.name + '\')">下载</button> ';
+                        html += '<button class="btn btn-sm btn-danger" onclick="deleteBackup(\'' + b.name + '\')">删除</button>';
+                        html += '</td></tr>';
+                    }
+                    $('#backupTable').html(html || '<tr><td colspan="4" class="text-center" style="color:#999;">暂无备份</td></tr>');
+                    renderPagination('#backupPagination', res.data.total, res.data.page, res.data.per_page, 'loadBackups');
+                }
+            });
+        }
+
+        function doBackup() {
+            apiPost('/api/backup', {}, function(res) {
+                if (res.code === 200) {
+                    showToast('备份成功: ' + res.data.file, 'success');
+                    loadBackups();
+                } else {
+                    showToast(res.msg, 'error');
+                }
+            });
+        }
+
+        function doRestore(filename) {
+            if (!confirm('恢复数据将覆盖当前数据库，确定继续？')) return;
+            apiPost('/api/backup/restore', { filename: filename }, function(res) {
+                if (res.code === 200) {
+                    showToast('恢复成功，请重启系统', 'success');
+                } else {
+                    showToast(res.msg, 'error');
+                }
+            });
+        }
+
+        function deleteBackup(filename) {
+            if (!confirm('确定删除备份 "' + filename + '"？此操作不可恢复。')) return;
+            apiPost('/api/backup/delete', { filename: filename }, function(res) {
+                if (res.code === 200) {
+                    showToast('删除成功', 'success');
+                    loadBackups();
+                } else {
+                    showToast(res.msg, 'error');
+                }
+            });
+        }
+
+        function downloadBackup(filename) {
+            window.open('/api/backup/download?filename=' + encodeURIComponent(filename), '_blank');
+        }
+
+        var _fieldList = [];
+        var _fullFieldList = [];
+        function loadFields(page) {
+            var page = page || 1;
+            apiGet('/api/field_meta?page=' + page, function(res) {
+                if (res.code === 200) {
+                    _fieldList = res.data.list;
+                    renderFieldTable(res.data.list);
+                    renderPagination('#fieldPagination', res.data.total, res.data.page, res.data.per_page, 'loadFields');
+                }
+            });
+            // 同时加载所有字段用于联动选项
+            apiGet('/api/field_meta?per_page=1000', function(res) {
+                if (res.code === 200) {
+                    _fullFieldList = res.data.list;
+                    updateLinkFieldOptions(_fullFieldList);
+                }
+            });
+        }
+
+        function renderFieldTable(list) {
+            var typeMap = { text: '文本', number: '数字', select: '下拉选项', date: '日期', dateym: '日期年月' };
+            var html = '';
+            for (var i = 0; i < list.length; i++) {
+                var f = list[i];
+                var statusBadge = f.is_active ? '<span class="badge badge-success">启用</span>' : '<span class="badge badge-danger">停用</span>';
+                var showBadge = f.show_in_list ? '<span class="badge badge-info">显示</span>' : '<span class="badge badge-secondary" style="background:#e9ecef;color:#6c757d;">隐藏</span>';
+                var linkInfo = f.link_field || '-';
+                var optionsDisplay = (f.options || '-');
+                if (optionsDisplay !== '-' && optionsDisplay.length > 20) {
+                    var optionsCount = optionsDisplay.split(',').length;
+                    var shortOptions = escapeHtml(optionsDisplay.substring(0, 17)) + '...';
+                    var fullOptions = escapeHtml(optionsDisplay);
+                    var shortContent = shortOptions + ' <small style="color:#999;">(' + optionsCount + '项)</small>';
+                    optionsDisplay = '<span class="options-toggle" style="cursor:pointer;color:#1890ff;" onclick="toggleOptionsDisplay(this)" title="点击展开/收起 (' + optionsCount + '项)" data-expanded="false">' + 
+                        '<span class="opt-short" style="display:inline;">' + shortContent + '</span>' +
+                        '<span class="opt-full" style="display:none;">' + fullOptions + '</span>' +
+                    '</span>';
+                } else {
+                    optionsDisplay = escapeHtml(optionsDisplay);
+                }
+                html += '<tr>';
+                html += '<td>' + (i + 1) + '</td>';
+                html += '<td><code>' + f.field_code + '</code></td>';
+                html += '<td>' + f.field_name + '</td>';
+                html += '<td>' + (typeMap[f.field_type] || f.field_type) + '</td>';
+                html += '<td>' + (f.default_val || '-') + '</td>';
+                html += '<td style="max-width:200px;word-wrap:break-word;">' + optionsDisplay + '</td>';
+                html += '<td>' + linkInfo + '</td>';
+                html += '<td>' + showBadge + '</td>';
+                html += '<td>' + f.sort_num + '</td>';
+                html += '<td>' + statusBadge + '</td>';
+                html += '<td>';
+                html += '<button class="btn btn-sm btn-info" onclick="editField(' + f.id + ')">编辑</button> ';
+                if (f.is_active) {
+                    html += '<button class="btn btn-sm btn-warning" onclick="toggleField(' + f.id + ',0)">停用</button> ';
+                } else {
+                    html += '<button class="btn btn-sm btn-success" onclick="toggleField(' + f.id + ',1)">启用</button> ';
+                }
+                html += '<button class="btn btn-sm btn-danger" onclick="deleteField(' + f.id + ')">删除</button>';
+                html += '</td></tr>';
+            }
+            $('#fieldTable').html(html || '<tr><td colspan="12" class="text-center" style="color:#999;">暂无字段</td></tr>');
+        }
+
+        function updateLinkFieldOptions(list) {
+            var html = '<option value="">无联动</option>';
+            for (var i = 0; i < list.length; i++) {
+                var f = list[i];
+                if (f.field_type === 'select' || f.field_type === 'text') {
+                    html += '<option value="' + f.field_code + '">' + f.field_name + '(' + f.field_code + ')</option>';
+                }
+            }
+            $('#fLinkField').html(html);
+        }
+
+        function onFieldTypeChange() {
+            $('#fOptionsGroup').toggle($('#fType').val() === 'select');
+        }
+
+        var _fullSourceOptions = '';
+        var _linkageMap = {};
+        
+        function onLinkFieldChange() {
+            var val = $('#fLinkField').val();
+            if (val) {
+                $('#linkConfigGroup').show();
+                var sourceField = _fieldList.find(function(f) { return f.field_code === val; });
+                var sourceOptions = sourceField ? (sourceField.options || '') : '';
+                _fullSourceOptions = sourceOptions;
+                $('#linkSearch').val('');
+                var editId = $('#fEditId').val();
+                if (editId) {
+                    loadLinkageFromDB(editId, sourceOptions);
+                } else {
+                    _linkageMap = {};
+                    renderLinkTable(sourceOptions);
+                }
+            } else {
+                $('#linkConfigGroup').hide();
+            }
+        }
+
+        function loadLinkageFromDB(fieldId, sourceOptions) {
+            apiGet('/api/field/' + fieldId + '/linkage', function(res) {
+                if (res.code === 200) {
+                    var linkageMap = {};
+                    for (var i = 0; i < res.data.length; i++) {
+                        var item = res.data[i];
+                        linkageMap[item.source_option] = item.target_options;
+                    }
+                    _linkageMap = linkageMap;
+                    renderLinkTable(sourceOptions, linkageMap);
+                } else {
+                    _linkageMap = {};
+                    renderLinkTable(sourceOptions);
+                }
+            });
+        }
+
+        function renderLinkTable(sourceOptions, linkageMap) {
+            linkageMap = linkageMap || _linkageMap || {};
+            var searchVal = $('#linkSearch').val().trim().toLowerCase();
+            var opts = sourceOptions ? sourceOptions.split(',') : [];
+            var html = '';
+            for (var i = 0; i < opts.length; i++) {
+                var opt = opts[i].trim();
+                if (searchVal && opt.toLowerCase().indexOf(searchVal) === -1) {
+                    continue;
+                }
+                var targetOpts = linkageMap[opt] || '';
+                html += '<tr data-option="' + opt + '">';
+                html += '<td style="padding:6px;border:1px solid #e9ecef;font-weight:500;">' + opt + '</td>';
+                html += '<td style="padding:6px;border:1px solid #e9ecef;">';
+                html += '<input type="text" class="form-control link-target-input" data-source-option="' + opt + '" value="' + targetOpts + '" placeholder="输入选项，逗号分隔">';
+                html += '</td>';
+                html += '</tr>';
+            }
+            $('#linkConfigBody').html(html);
+        }
+
+        function filterLinkOptions() {
+            renderLinkTable(_fullSourceOptions, _linkageMap);
+        }
+
+        function batchSetAll() {
+            // 显示批量设置模态框
+            var optionsStr = $('#fOptions').val();
+            if (!optionsStr) {
+                showToast('请先设置字段的下拉选项', 'error');
+                return;
+            }
+            var opts = optionsStr.split(',');
+            var html = '';
+            for (var i = 0; i < opts.length; i++) {
+                var opt = opts[i].trim();
+                if (opt) {
+                    html += '<label style="display:flex;align-items:center;gap:8px;padding:4px 0;">';
+                    html += '<input type="checkbox" class="batch-option-check" value="' + opt + '">';
+                    html += '<span>' + opt + '</span>';
+                    html += '</label>';
+                }
+            }
+            $('#batchOptionsArea').html(html);
+            $('#batchSetModal').show();
+        }
+
+        function closeBatchSetModal() {
+            $('#batchSetModal').hide();
+        }
+
+        function confirmBatchSet() {
+            var selectedOpts = [];
+            $('.batch-option-check:checked').each(function() {
+                selectedOpts.push($(this).val());
+            });
+            var valueToSet = selectedOpts.join(',');
+            $('.link-target-input').val(valueToSet);
+            // 更新linkageMap
+            var rows = $('#linkConfigBody tr');
+            for (var i = 0; i < rows.length; i++) {
+                var opt = $(rows[i]).data('option');
+                _linkageMap[opt] = valueToSet;
+            }
+            closeBatchSetModal();
+            showToast('批量设置成功', 'success');
+        }
+
+        function clearAllLinkOptions() {
+            if (!confirm('确定要清空所有联动选项吗？')) return;
+            $('.link-target-input').val('');
+            _linkageMap = {};
+            showToast('已清空', 'success');
+        }
+
+        function showAddFieldModal() {
+            $('#fEditId').val('');
+            $('#fCode').val('').prop('disabled', false);
+            $('#fName').val('');
+            $('#fType').val('text');
+            $('#fDefault').val('');
+            $('#fOptions').val('');
+            $('#fLinkField').val('');
+            $('#linkConfigGroup').hide();
+            $('#fShowInList').val('0');
+            $('#fSortNum').val('0');
+            $('#fOptionsGroup').hide();
+            $('#fieldModalTitle').text('新增字段');
+            $('#fieldModal').show();
+        }
+
+        function editField(id) {
+            var f = _fieldList.find(function(item) { return item.id === id; });
+            if (!f) return;
+            $('#fEditId').val(f.id);
+            $('#fCode').val(f.field_code).prop('disabled', true);
+            $('#fName').val(f.field_name);
+            $('#fType').val(f.field_type);
+            $('#fDefault').val(f.default_val);
+            $('#fOptions').val(f.options || '');
+            $('#fLinkField').val(f.link_field || '');
+            $('#fShowInList').val(f.show_in_list ? '1' : '0');
+            $('#fSortNum').val(f.sort_num);
+            $('#fOptionsGroup').toggle(f.field_type === 'select');
+            
+            _linkageMap = {};
+            if (f.link_field) {
+                $('#linkConfigGroup').show();
+                var sourceField = _fieldList.find(function(x) { return x.field_code === f.link_field; });
+                var sourceOptions = sourceField ? (sourceField.options || '') : '';
+                
+                if (f.link_options && typeof f.link_options === 'object' && Object.keys(f.link_options).length > 0) {
+                    _linkageMap = f.link_options;
+                    renderLinkTable(sourceOptions, f.link_options);
+                    loadLinkageFromDB(id, sourceOptions);
+                } else {
+                    loadLinkageFromDB(id, sourceOptions);
+                }
+            } else {
+                $('#linkConfigGroup').hide();
+            }
+            $('#fieldModalTitle').text('编辑字段');
+            $('#fieldModal').show();
+        }
+
+        function closeFieldModal() { $('#fieldModal').hide(); }
+
+        function saveField() {
+            var id = $('#fEditId').val();
+            var data = {
+                field_code: $('#fCode').val().trim(),
+                field_name: $('#fName').val().trim(),
+                field_type: $('#fType').val(),
+                default_val: $('#fDefault').val().trim(),
+                options: $('#fOptions').val().trim(),
+                link_field: $('#fLinkField').val(),
+                show_in_list: parseInt($('#fShowInList').val()),
+                sort_num: parseInt($('#fSortNum').val()) || 0
+            };
+            if (!data.field_name) { showToast('字段名称不能为空', 'error'); return; }
+            if (!id && !data.field_code) { showToast('字段编码不能为空', 'error'); return; }
+
+            function saveLinkage(fid) {
+                var linkages = [];
+                $('.link-target-input').each(function() {
+                    var srcOpt = $(this).data('source-option');
+                    var tgtOpts = $(this).val().trim();
+                    if (srcOpt) {
+                        linkages.push({ source_option: srcOpt, target_options: tgtOpts });
+                    }
+                });
+                apiPut('/api/field/' + fid + '/linkage', { linkages: linkages }, function(linkRes) {
+                    if (linkRes.code === 200) {
+                        showToast('更新成功', 'success');
+                        closeFieldModal();
+                        loadFields();
+                    } else {
+                        showToast(linkRes.msg, 'error');
+                    }
+                });
+            }
+
+            if (id) {
+                apiPut('/api/field_meta/' + id, data, function(res) {
+                    if (res.code === 200) {
+                        if (data.link_field) {
+                            saveLinkage(id);
+                        } else {
+                            showToast('更新成功', 'success');
+                            closeFieldModal();
+                            loadFields();
+                        }
+                    } else {
+                        showToast(res.msg, 'error');
+                    }
+                });
+            } else {
+                apiPost('/api/field_meta', data, function(res) {
+                    if (res.code === 200) {
+                        if (data.link_field) {
+                            saveLinkage(res.data.id);
+                        } else {
+                            showToast('添加成功', 'success');
+                            closeFieldModal();
+                            loadFields();
+                        }
+                    } else {
+                        showToast(res.msg, 'error');
+                    }
+                });
+            }
+        }
+
+        function toggleField(id, active) {
+            var f = _fieldList.find(function(item) { return item.id === id; });
+            if (!f) return;
+            apiPut('/api/field_meta/' + id, { field_name: f.field_name, field_type: f.field_type, is_active: active, show_in_list: f.show_in_list, sort_num: f.sort_num }, function(res) {
+                if (res.code === 200) {
+                    showToast(active ? '已启用' : '已停用', 'success');
+                    loadFields();
+                }
+            });
+        }
+
+        function deleteField(id) {
+            if (!confirm('确定删除该字段？删除后数据不可恢复！')) return;
+            apiDelete('/api/field_meta/' + id, function(res) {
+                if (res.code === 200) {
+                    showToast('删除成功', 'success');
+                    loadFields();
+                }
+            });
+        }
+
+        function showDisplayConfig() {
+            var html = '';
+            for (var i = 0; i < _fieldList.length; i++) {
+                var f = _fieldList[i];
+                html += '<div style="display:flex;align-items:center;gap:12px;padding:8px 0;border-bottom:1px solid #e9ecef;">';
+                html += '<label style="min-width:120px;font-weight:500;">' + f.field_name + '</label>';
+                html += '<label style="cursor:pointer;"><input type="checkbox" class="displayCheck" data-id="' + f.id + '" ' + (f.show_in_list ? 'checked' : '') + '> 显示</label>';
+                html += '<label style="margin-left:12px;">排序：<input type="number" class="displaySort" data-id="' + f.id + '" value="' + f.sort_num + '" style="width:60px;padding:4px 8px;border:1px solid #e9ecef;border-radius:4px;"></label>';
+                html += '</div>';
+            }
+            $('#displayFields').html(html);
+            $('#displayModal').show();
+        }
+
+        function closeDisplayModal() { $('#displayModal').hide(); }
+
+        function saveDisplayConfig() {
+            var items = [];
+            $('.displayCheck').each(function() {
+                items.push({
+                    id: parseInt($(this).data('id')),
+                    show_in_list: $(this).is(':checked') ? 1 : 0,
+                    sort_num: parseInt($('.displaySort[data-id="' + $(this).data('id') + '"]').val()) || 0
+                });
+            });
+            apiPut('/api/field_display', { items: items }, function(res) {
+                if (res.code === 200) {
+                    showToast('显示配置已保存', 'success');
+                    closeDisplayModal();
+                    loadFields();
+                }
+            });
+        }
+
+        function loadLogs(page) {
+            page = page || 1;
+            var action = $('#logAction').val().trim();
+            var params = 'page=' + page + '&per_page=20';
+            if (action) params += '&action=' + encodeURIComponent(action);
+            apiGet('/api/log?' + params, function(res) {
+                if (res.code === 200) {
+                    var html = '';
+                    var list = res.data.list || [];
+                    for (var i = 0; i < list.length; i++) {
+                        var l = list[i];
+                        html += '<tr>';
+                        html += '<td>' + l.id + '</td>';
+                        html += '<td>' + (l.username || '-') + '</td>';
+                        html += '<td>' + l.action + '</td>';
+                        html += '<td style="max-width:300px;word-break:break-all;font-size:12px;">' + (l.detail || '-') + '</td>';
+                        html += '<td>' + (l.ip || '-') + '</td>';
+                        html += '<td>' + (l.create_time || '-') + '</td>';
+                        html += '</tr>';
+                    }
+                    $('#logTable').html(html || '<tr><td colspan="6" class="text-center" style="color:#999;">暂无日志</td></tr>');
+                    renderPagination('#logPagination', res.data.total, res.data.page, res.data.per_page, 'loadLogs');
+                }
+            });
+        }
+
+        function loadSettings() {
+            apiGet('/api/settings', function(res) {
+                if (res.code === 200) {
+                    $('#logRetainDays').val(res.data.log_retain_days || 30);
+                }
+            });
+        }
+
+        function saveLogSettings() {
+            var days = parseInt($('#logRetainDays').val()) || 30;
+            apiPost('/api/settings', { log_retain_days: days.toString() }, function(res) {
+                if (res.code === 200) {
+                    showToast('日志保留天数已保存', 'success');
+                }
+            });
+        }
+
+        var _csvFileData = null;
+
+        function showImportModal() {
+            $('#importType').val('csv');
+            $('#importContent').val('');
+            $('#importOverwrite').prop('checked', false);
+            $('#csvFileInput').val('');
+            _csvFileData = null;
+            $('#csvFileGroup').show();
+            $('#jsonContentGroup').hide();
+            $('#downloadTemplateGroup').show();
+            $('#csvPreviewGroup').hide();
+            $('#importModal').show();
+        }
+
+        function closeImportModal() { 
+            $('#importModal').hide(); 
+            _csvFileData = null;
+        }
+
+        function onImportTypeChange() {
+            var type = $('#importType').val();
+            if (type === 'csv') {
+                $('#csvFileGroup').show();
+                $('#jsonContentGroup').hide();
+                $('#downloadTemplateGroup').show();
+            } else {
+                $('#csvFileGroup').hide();
+                $('#jsonContentGroup').show();
+                $('#downloadTemplateGroup').hide();
+                $('#csvPreviewGroup').hide();
+            }
+        }
+
+        function onCsvFileSelected(event) {
+            var file = event.target.files[0];
+            if (!file) return;
+            
+            var reader = new FileReader();
+            reader.onload = function(e) {
+                var content = e.target.result;
+                if (content.charCodeAt(0) === 0xFEFF) {
+                    content = content.slice(1);
+                }
+                
+                if (content.indexOf('�') > -1 || !content.match(/[\u4e00-\u9fa5]/)) {
+                    var gbkReader = new FileReader();
+                    gbkReader.onload = function(e2) {
+                        var gbkContent = e2.target.result;
+                        processCsvPreview(gbkContent);
+                    };
+                    gbkReader.readAsText(file, 'GB2312');
+                    return;
+                }
+                
+                processCsvPreview(content);
+            };
+            reader.readAsText(file, 'UTF-8');
+        }
+
+        function processCsvPreview(content) {
+            _csvFileData = content;
+            
+            var lines = content.split('\n');
+            var previewHtml = '';
+            var count = 0;
+            var headerSkipped = false;
+            for (var i = 0; i < lines.length && count < 5; i++) {
+                var line = lines[i].trim();
+                if (!line) continue;
+                
+                var cols = parseCsvLine(line);
+                var firstCol = (cols[0] || '').trim().toLowerCase();
+                if (!headerSkipped && (firstCol === '字段编码' || firstCol === 'field_code' || line.startsWith('字段编码') || line.startsWith('Field Code'))) {
+                    headerSkipped = true;
+                    continue;
+                }
+                if (line.startsWith('#') || line.startsWith('===') || line.startsWith('--')) continue;
+                if (cols.length < 2) continue;
+                
+                previewHtml += '<tr><td>' + escapeHtml(cols[0] || '') + '</td><td>' + escapeHtml(cols[1] || '') + '</td><td>' + escapeHtml(cols[2] || '') + '</td><td>' + escapeHtml(cols[5] || '') + '</td></tr>';
+                count++;
+            }
+            $('#csvPreviewBody').html(previewHtml);
+            $('#csvPreviewGroup').show();
+        }
+
+        function escapeHtml(text) {
+            var div = document.createElement('div');
+            div.appendChild(document.createTextNode(text));
+            return div.innerHTML;
+        }
+
+        function escapeAttr(text) {
+            return String(text || '')
+                .replace(/&/g, '&amp;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;');
+        }
+
+        function exportFields() {
+            apiGet('/api/field_meta/export', function(res) {
+                if (res.code === 200) {
+                    var jsonStr = JSON.stringify(res.data, null, 2);
+                    var blob = new Blob([jsonStr], { type: 'application/json' });
+                    var url = URL.createObjectURL(blob);
+                    var a = document.createElement('a');
+                    a.href = url;
+                    a.download = 'field_config_' + new Date().toISOString().slice(0, 10) + '.json';
+                    a.click();
+                    URL.revokeObjectURL(url);
+                    showToast('导出成功', 'success');
+                }
+            });
+        }
+
+        function downloadCsvTemplate() {
+            var header = '字段编码,字段名称,字段类型,默认值,下拉选项,联动字段,联动配置(JSON格式),排序号,是否启用,列表显示';
+            var examples = [
+                'position,岗位,select,,科员,科长,副处长,,1,1,1',
+                'gender,性别,select,,男,女,,{},2,1,0',
+                'education,学历,text,,,,{},3,1,1',
+                'unit,工作单位,select,,,dept,"{""人社局"":""机保中心,社保中心"",""教育局"":""一小,二小""}",4,1,1'
+            ];
+            var csvContent = '\uFEFF' + header + '\n' + examples.join('\n');
+            var blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            var url = URL.createObjectURL(blob);
+            var a = document.createElement('a');
+            a.href = url;
+            a.download = 'field_import_template.csv';
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        function doImport() {
+            var type = $('#importType').val();
+            var content = '';
+            var overwrite = $('#importOverwrite').is(':checked');
+
+            if (type === 'csv') {
+                if (!_csvFileData) { showToast('请选择CSV文件', 'error'); return; }
+                content = _csvFileData;
+            } else {
+                content = $('#importContent').val().trim();
+                if (!content) { showToast('请输入导入内容', 'error'); return; }
+            }
+
+            var fields = [];
+            var linkages = [];
+
+            if (type === 'json') {
+                try {
+                    var data = JSON.parse(content);
+                    if (Array.isArray(data)) {
+                        fields = data;
+                    } else if (data.fields) {
+                        fields = data.fields;
+                        linkages = data.linkages || [];
+                    } else {
+                        showToast('JSON格式不正确，应为字段数组或包含fields的对象', 'error');
+                        return;
+                    }
+                } catch (e) {
+                    showToast('JSON解析失败：' + e.message, 'error');
+                    return;
+                }
+            } else {
+                var lines = content.split('\n');
+                for (var i = 0; i < lines.length; i++) {
+                    var line = lines[i].trim();
+                    if (!line || line.startsWith('#') || line.startsWith('===') || line.startsWith('字段编码')) continue;
+                    var cols = parseCsvLine(line);
+                    if (cols.length < 2) continue;
+                    var options = (cols[4] || '').trim();
+                    if (options.indexOf(';') > -1) {
+                        options = options.replace(/;/g, ',');
+                    }
+                    var linkOptions = (cols[6] || '').trim();
+                    var linkOptsObj = {};
+                    if (linkOptions && linkOptions !== '{}') {
+                        linkOptions = linkOptions.replace(/^["']|["']$/g, '');
+                        try {
+                            linkOptsObj = JSON.parse(linkOptions);
+                        } catch(e) {
+                            try {
+                                var fixedJson = linkOptions.replace(/""/g, '"');
+                                linkOptsObj = JSON.parse(fixedJson);
+                            } catch(e2) {
+                                console.error('第' + (i+1) + '行联动配置解析失败:', linkOptions, e2.message);
+                            }
+                        }
+                    }
+                    console.log('第' + (i+1) + '行解析结果:', {
+                        field_code: cols[0],
+                        field_name: cols[1],
+                        link_field: cols[5],
+                        link_options: linkOptsObj,
+                        raw_link_options: cols[6]
+                    });
+                    fields.push({
+                        field_code: (cols[0] || '').trim(),
+                        field_name: (cols[1] || '').trim(),
+                        field_type: (cols[2] || 'text').trim() || 'text',
+                        default_val: (cols[3] || '').trim(),
+                        options: options,
+                        link_field: (cols[5] || '').trim(),
+                        link_options: linkOptsObj,
+                        sort_num: parseInt(cols[7]) || 0,
+                        is_active: (cols[8] || '1').trim() === '1' ? 1 : 0,
+                        show_in_list: (cols[9] || '0').trim() === '1' ? 1 : 0
+                    });
+                }
+            }
+
+            if (fields.length === 0) { showToast('没有解析到有效字段', 'error'); return; }
+
+            console.log('导入字段数据:', JSON.stringify(fields, null, 2));
+            
+            apiPost('/api/field_meta/import', {
+                fields: fields,
+                linkages: linkages,
+                overwrite: overwrite
+            }, function(res) {
+                if (res.code === 200) {
+                    showToast(res.msg, 'success');
+                    closeImportModal();
+                    loadFields();
+                } else {
+                    showToast(res.msg, 'error');
+                }
+            });
+        }
+    </script>
+</body>
+</html>

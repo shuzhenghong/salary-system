@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>系统首页 - 人员薪酬管理系统</title>
+    <link rel="stylesheet" href="css/style.css">
+    <script src="https://cdn.bootcdn.net/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+</head>
+<body>
+    <div class="layout">
+        <div class="sidebar"></div>
+        <div class="main-content">
+            <div class="top-header">
+                <span class="page-title">系统首页</span>
+                <div class="user-info">
+                    <span id="username"></span>
+                    <span id="userRole"></span>
+                    <button class="btn btn-sm btn-outline" onclick="logout()">退出</button>
+                </div>
+            </div>
+            <div class="page-body">
+                <div class="stat-cards">
+                    <div class="stat-card">
+                        <div class="stat-icon blue">&#128100;</div>
+                        <div class="stat-info">
+                            <h4 id="staffTotal">0</h4>
+                            <p>在职人员</p>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon green">&#128218;</div>
+                        <div class="stat-info">
+                            <h4 id="bookTotal">0</h4>
+                            <p>薪酬帐套</p>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon orange">&#127970;</div>
+                        <div class="stat-info">
+                            <h4 id="deptTotal">0</h4>
+                            <p>部门数量</p>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon red">&#128176;</div>
+                        <div class="stat-info">
+                            <h4 id="calcTotal">0</h4>
+                            <p>核算记录</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-title">快捷操作</div>
+                    <div style="display:flex;gap:12px;flex-wrap:wrap;">
+                        <a href="staff_manage.html" class="btn btn-primary">人员档案管理</a>
+                        <a href="salary_calc.html" class="btn btn-success" id="btnCalc">薪资核算</a>
+                        <a href="salary_query.html" class="btn btn-info">薪资查询</a>
+                        <a href="export.html" class="btn btn-warning">报表导出</a>
+                        <a href="salary_book.html" class="btn btn-outline" id="btnBook">帐套管理</a>
+                        <a href="settings.html" class="btn btn-outline" id="btnSettings">系统设置</a>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-title">系统说明</div>
+                    <div style="line-height:2;font-size:13px;color:#6c757d;">
+                        <p><strong>1. 人员档案</strong>：管理人员信息，支持自定义字段、部门/单位联动、考核管理。工龄自动计算（计算年份-参加工作时间+1），套改年限=工龄-考核称职以下年数。</p>
+                        <p><strong>2. 薪酬帐套</strong>：支持创建多个薪酬帐套（如在编帐套、合同工帐套），不同帐套独立核算，每个帐套下可配置工资项目。</p>
+                        <p><strong>3. 工资项目</strong>：每个帐套下可自由新增工资项目，支持可用字段点击插入、内置函数悬停说明，每个项目可配置筛选条件+计算公式。</p>
+                        <p><strong>4. 薪资核算</strong>：选择帐套、部门、单位、年月进行核算，核算结果以记录列表展示，支持删除，点击详情查看全部人员薪资明细。</p>
+                        <p><strong>5. 系统设置</strong>：包含用户管理（增删改查）、数据备份恢复、字段配置（含联动和显示配置）、日志管理（可设置自动删除天数）。修改密码请点击右上角"改密"按钮。</p>
+                        <p><strong>6. 报表导出</strong>：支持导出人员档案和薪资明细Excel。</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script src="js/common.js"></script>
+    <script>
+        initPage('dashboard');
+        apiGet('/api/dashboard', function(res) {
+            if (res.code === 200) {
+                $('#staffTotal').text(res.data.staff_total);
+                $('#bookTotal').text(res.data.book_total);
+                $('#deptTotal').text(res.data.dept_total);
+                $('#calcTotal').text(res.data.calc_total);
+            }
+        });
+
+        checkLogin(function(data) {
+            if (data.role !== 'admin') {
+                $('#btnCalc').hide();
+                $('#btnBook').hide();
+                $('#btnSettings').hide();
+            }
+        });
+    </script>
+</body>
+</html>

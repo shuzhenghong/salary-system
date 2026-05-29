@@ -1,0 +1,16 @@
+[Desktop Entry]
+Name=编外人员管理系统
+Name[zh_CN]=编外人员管理系统
+GenericName=Salary Management System
+GenericName[zh_CN]=人员薪酬管理信息系统
+Comment=Manage personnel information and salary calculation
+Comment[zh_CN]=管理人员信息和薪资核算
+Exec=bash -c "cd %k && ./编外人员管理系统"
+Icon=system-users
+Terminal=false
+Type=Application
+Categories=Office;Finance;Database;
+StartupNotify=true
+Keywords=salary;personnel;HR;薪酬;人事;
+StartupWMClass=编外人员管理系统
+X-UOS-ApplicationName=编外人员管理系统

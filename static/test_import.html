@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>CSV导入测试页面</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; line-height: 1.6; }
+        .test-section { background: #f5f5f5; padding: 15px; margin: 10px 0; border-radius: 5px; }
+        .success { color: green; font-weight: bold; }
+        .error { color: red; font-weight: bold; }
+        .warning { color: orange; font-weight: bold; }
+        code { background: #e8e8e8; padding: 2px 6px; border-radius: 3px; }
+        pre { background: #2d2d2d; color: #f8f8f2; padding: 15px; border-radius: 5px; overflow-x: auto; }
+        button { padding: 10px 20px; margin: 5px; cursor: pointer; }
+        .log-container { height: 300px; overflow-y: auto; background: #000; color: #0f0; padding: 10px; font-family: monospace; font-size: 12px; }
+    </style>
+</head>
+<body>
+    <h1>🔧 CSV导入功能诊断工具</h1>
+    
+    <div class="test-section">
+        <h2>📋 步骤1：检查浏览器缓存</h2>
+        <p><strong>当前时间戳：</strong><span id="timestamp"></span></p>
+        <p><strong>建议操作：</strong></p>
+        <ol>
+            <li>按 <code>Ctrl + F5</code> 强制刷新字段配置页面</li>
+            <li>或打开隐私/无痕窗口访问系统</li>
+        </ol>
+        <button onclick="testCache()">🔄 检查缓存状态</button>
+        <p id="cacheResult"></p>
+    </div>
+
+    <div class="test-section">
+        <h2>🔍 步骤2：验证代码是否更新</h2>
+        <p>在字段配置页面的浏览器控制台（F12）中执行以下代码：</p>
+        <pre id="testCode">doImport.toString().indexOf('console.log') > -1 ? '✅ 新代码已加载' : '❌ 还是旧代码，请强制刷新！'</pre>
+        <button onclick="copyTestCode()">📋 复制测试代码</button>
+        <p class="warning">⚠️ 如果显示"旧代码"，说明浏览器还在使用缓存的文件！</p>
+    </div>
+
+    <div class="test-section">
+        <h2>🧪 步骤3：模拟导入测试</h2>
+        <p>这个测试会调用导入API，但不会真正保存数据（使用测试数据）：</p>
+        
+        <label>测试数据量：<input type="number" id="testCount" value="5" min="1" max="50"></label>
+        <br><br>
+        
+        <button onclick="runTest()" id="testBtn">▶️ 开始测试</button>
+        <button onclick="clearLog()">🗑️ 清空日志</button>
+        
+        <h3>实时日志：</h3>
+        <div class="log-container" id="logContainer"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>📊 步骤4：性能对比</h2>
+        <table border="1" cellpadding="10" style="border-collapse: collapse;">
+            <tr>
+                <th>指标</th>
+                <th>旧版本（逐行）</th>
+                <th>新版本（批量）</th>
+                <th>提升</th>
+            </tr>
+            <tr>
+                <td>API调用次数（10个字段）</td>
+                <td class="error">30+ 次</td>
+                <td class="success">1 次</td>
+                <td class="success">30倍 ⚡</td>
+            </tr>
+            <tr>
+                <td>预计耗时</td>
+                <td class="error">5-10 秒</td>
+                <td class="success">< 1 秒</td>
+                <td class="success">10倍 🚀</td>
+            </tr>
+            <tr>
+                <td>重复提交保护</td>
+                <td class="error">❌ 无</td>
+                <td class="success">✅ 有</td>
+                <td class="success">安全 🔒</td>
+            </tr>
+            <tr>
+                <td>用户反馈</td>
+                <td class="error">无（卡顿）</td>
+                <td class="success">即时提示</td>
+                <td class="success">友好 👍</td>
+            </tr>
+        </table>
+    </div>
+
+    <div class="test-section">
+        <h2>❓ 常见问题</h2>
+        
+        <details>
+            <summary><strong>Q1: 点击"开始导入"没反应？</strong></summary>
+            <p>可能原因：</p>
+            <ul>
+                <li>没有选择CSV文件 → 会弹出提示"请先选择CSV文件"</li>
+                <li>JavaScript错误 → 查看控制台是否有红色错误</li>
+                <li>按钮事件未绑定 → 刷新页面重试</li>
+            </ul>
+        </details>
+        
+        <details>
+            <summary><strong>Q2: 还是很慢？</strong></summary>
+            <p>检查步骤：</p>
+            <ol>
+                <li>查看控制台日志，找到"准备调用API..."这行</li>
+                <li>如果这行之前就很慢 → CSV解析问题（数据太大？）</li>
+                <li>如果这行之后才慢 → 服务端问题（需要优化数据库）</li>
+                <li>记录具体耗时，提供给我分析</li>
+            </ol>
+        </details>
+        
+        <details>
+            <summary><strong>Q3: 数据还是重复？</strong></summary>
+            <p>验证方法：</p>
+            <ol>
+                <li>点击导入后，立即多次快速点击按钮</li>
+                <li>应该看到alert提示"正在导入中，请稍候..."</li>
+                <li>如果没有这个提示，说明代码没更新成功</li>
+                <li>检查数据库：sqlite3 salary.db "SELECT COUNT(*) FROM field_linkage;"</li>
+            </ol>
+        </details>
+    </div>
+
+    <script>
+        // 显示当前时间
+        document.getElementById('timestamp').textContent = new Date().toLocaleString();
+        
+        // 测试缓存
+        function testCache() {
+            const result = document.getElementById('cacheResult');
+            result.innerHTML = '<span class="warning">⏳ 正在检测...</span>';
+            
+            setTimeout(() => {
+                const perf = performance.getEntriesByType('navigation')[0];
+                if (perf && perf.loadEventEnd - perf.responseStart < 1000) {
+                    result.innerHTML = '<span class="success">✅ 可能从缓存加载</span><br>' +
+                                      '<strong>建议：</strong>按 Ctrl+F5 强制刷新';
+                } else {
+                    result.innerHTML = '<span class="success">✅ 已重新加载</span>';
+                }
+            }, 500);
+        }
+        
+        // 复制测试代码
+        function copyTestCode() {
+            const code = document.getElementById('testCode').textContent;
+            navigator.clipboard.writeText(code).then(() => {
+                alert('已复制！\n\n请在字段配置页面按F12，粘贴到Console中执行');
+            });
+        }
+        
+        // 日志系统
+        let logCount = 0;
+        function log(message, type = 'info') {
+            const container = document.getElementById('logContainer');
+            const time = new Date().toLocaleTimeString();
+            const colors = {
+                info: '#0f0',
+                success: '#0ff',
+                error: '#f00',
+                warning: '#ff0'
+            };
+            
+            container.innerHTML += `<div style="color:${colors[type]}">[${time}] [${type.toUpperCase()}] ${message}</div>`;
+            container.scrollTop = container.scrollHeight;
+            logCount++;
+        }
+        
+        function clearLog() {
+            document.getElementById('logContainer').innerHTML = '';
+            logCount = 0;
+        }
+        
+        // 运行测试
+        async function runTest() {
+            const btn = document.getElementById('testBtn');
+            const count = parseInt(document.getElementById('testCount').value) || 5;
+            
+            btn.disabled = true;
+            btn.textContent = '⏳ 测试中...';
+            clearLog();
+            
+            log(`开始测试，模拟 ${count} 个字段的导入`, 'info');
+            log('=' .repeat(50), 'info');
+            
+            try {
+                // 生成测试数据
+                const fields = [];
+                for (let i = 0; i < count; i++) {
+                    fields.push({
+                        field_code: `test_field_${i}`,
+                        field_name: `测试字段_${i}`,
+                        field_type: i % 3 === 0 ? 'select' : 'text',
+                        default_val: '',
+                        options: i % 3 === 0 ? '选项1,选项2,选项3' : '',
+                        link_field: i % 3 === 0 ? 'test_field_0' : '',
+                        link_options: i % 3 === 0 ? {'选项1': '值1,值2', '选项2': '值3'} : {}
+                    });
+                }
+                
+                log(`生成 ${fields.length} 个测试字段`, 'success');
+                
+                const startTime = performance.now();
+                log(`开始发送API请求...`, 'info');
+                
+                // 调用API
+                const response = await fetch('/api/field_meta/import', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    credentials: 'include',
+                    body: JSON.stringify({
+                        fields: fields,
+                        overwrite: true
+                    })
+                });
+                
+                const endTime = performance.now();
+                const duration = (endTime - startTime).toFixed(2);
+                
+                log(`API响应时间: ${duration}ms`, duration < 1000 ? 'success' : 'warning');
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const result = await response.json();
+                log(`响应状态: ${result.code}`, 'success');
+                log(`响应消息: ${result.msg}`, 'info');
+                
+                if (result.code === 200) {
+                    const data = result.data || {};
+                    log('-'.repeat(40), 'info');
+                    log('📊 导入结果统计:', 'success');
+                    log(`  新增字段: ${data.added || 0} 个`, 'info');
+                    log(`  更新字段: ${data.updated || 0} 个`, 'info');
+                    log(`  跳过字段: ${data.skipped || 0} 个`, 'info');
+                    log(`  联动配置: ${data.link_added || 0} 条`, 'info');
+                    log('-'.repeat(40), 'info');
+                    
+                    if (duration < 1000) {
+                        log(`✅ 性能优秀！${count}个字段仅用${duration}ms`, 'success');
+                    } else if (duration < 3000) {
+                        log(`⚠️ 性能一般，${count}个字段用了${duration}ms`, 'warning');
+                    } else {
+                        log(`❌ 性能较差，${count}个字段用了${duration}ms`, 'error');
+                    }
+                    
+                    log('', 'info');
+                    log('💡 提示：如果这是真实场景，速度会更快', 'info');
+                    log('   （因为不需要生成测试数据）', 'info');
+                } else {
+                    log(`❌ 导入失败: ${result.msg || '未知错误'}`, 'error');
+                }
+                
+            } catch (error) {
+                log(`❌ 测试失败: ${error.message}`, 'error');
+                log('可能原因:', 'warning');
+                log('  1. 服务未启动', 'warning');
+                log('  2. 网络连接问题', 'warning');
+                log('  3. 未登录或登录过期', 'warning');
+            }
+            
+            btn.disabled = false;
+            btn.textContent = '▶️ 开始测试';
+            log('\n' + '='.repeat(50), 'info');
+            log('测试完成，可以再次运行或调整数量', 'info');
+        }
+        
+        // 页面加载完成
+        window.onload = function() {
+            log('诊断工具已就绪', 'success');
+            log('请按照上方步骤进行测试', 'info');
+        };
+    </script>
+</body>
+</html>

@@ -1,0 +1,786 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <title>字段配置 - 人员薪酬管理系统</title>
+    <link rel="stylesheet" href="css/style.css?v=20260526" id="mainCss">
+    <script>document.getElementById('mainCss').href = 'css/style.css?v=' + Date.now();</script>
+    <script src="https://cdn.bootcdn.net/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+    <style>
+        .hint-text { font-size: 12px; color: #888; margin-bottom: 12px; }
+        .link-table { width: 100%; border-collapse: collapse; }
+        .link-table th, .link-table td { padding: 8px 10px; border: 1px solid #e1e4e8; text-align: left; }
+        .link-table th { background: #f5f7fa; font-weight: 600; }
+    </style>
+</head>
+<body>
+    <div class="layout">
+        <div class="sidebar"></div>
+        <div class="main-content">
+            <div class="top-header">
+                <span class="page-title">人员自定义字段配置</span>
+                <div class="user-info">
+                    <span id="username"></span>
+                    <button class="btn btn-sm btn-outline" onclick="logout()">退出</button>
+                </div>
+            </div>
+            <div class="page-body">
+                <div class="card">
+                    <div class="toolbar">
+                        <button class="btn btn-primary" onclick="showAddModal()">+ 新增字段</button>
+                        <button class="btn btn-outline" onclick="exportFieldsAsCSV()">导出CSV模板</button>
+                        <button class="btn btn-primary" onclick="showImportModal()">导入CSV</button>
+                    </div>
+                    <table style="table-layout:fixed;width:100%;">
+                        <thead>
+                            <tr>
+                                <th style="width:50px;">序号</th>
+                                <th style="width:120px;">字段编码</th>
+                                <th style="width:120px;">字段名称</th>
+                                <th style="width:80px;">字段类型</th>
+                                <th style="width:100px;">默认值</th>
+                                <th style="width:200px;">下拉选项</th>
+                                <th style="width:60px;">状态</th>
+                                <th style="width:200px;">操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="fieldTable"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="fieldModal" style="display:none;">
+        <div class="modal-overlay">
+            <div class="modal">
+                <div class="modal-header">
+                    <h4 id="modalTitle">新增字段</h4>
+                    <button class="close-btn" onclick="closeModal()">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <input type="hidden" id="editId">
+                    <div class="form-group">
+                        <label>字段编码（英文，公式引用用）</label>
+                        <input type="text" class="form-control" id="fieldCode" placeholder="如：zc, rank, edu">
+                    </div>
+                    <div class="form-group">
+                        <label>字段名称</label>
+                        <input type="text" class="form-control" id="fieldName" placeholder="如：职称、职级、学历">
+                    </div>
+                    <div class="form-group">
+                        <label>字段类型</label>
+                        <select class="form-control" id="fieldType">
+                            <option value="text">文本</option>
+                            <option value="number">数字</option>
+                            <option value="select">下拉选项</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>默认值</label>
+                        <input type="text" class="form-control" id="defaultVal" placeholder="可选">
+                    </div>
+                    <div class="form-group" id="optionsGroup" style="display:none;">
+                        <label>下拉选项（逗号分隔）</label>
+                        <input type="text" class="form-control" id="fieldOptions" placeholder="如：初级,中级,高级">
+                    </div>
+                    <div class="form-group">
+                        <label>联动字段（选择后该字段的选项会根据联动字段的值动态变化）</label>
+                        <select class="form-control" id="linkField" onchange="onLinkFieldChange()">
+                            <option value="">无联动</option>
+                        </select>
+                    </div>
+                    <div class="form-group" id="linkConfigGroup" style="display:none;">
+                        <label>联动映射配置</label>
+                        <p class="hint-text">为联动字段的每个值配置当前字段要显示的选项</p>
+                        <table class="link-table" id="linkConfigTable">
+                            <thead>
+                                <tr>
+                                    <th style="width: 30%;">联动字段值</th>
+                                    <th style="width: 60%;">当前字段显示选项（逗号分隔）</th>
+                                    <th style="width: 10%;">操作</th>
+                                </tr>
+                            </thead>
+                            <tbody id="linkConfigBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-outline" onclick="closeModal()">取消</button>
+                    <button class="btn btn-primary" onclick="saveField()">保存</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="importModal" style="display:none;">
+        <div class="modal-overlay">
+            <div class="modal" style="width:500px;">
+                <div class="modal-header">
+                    <h4>导入字段配置</h4>
+                    <button class="close-btn" onclick="closeImportModal()">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label>选择CSV文件</label>
+                        <input type="file" class="form-control" id="importFile" accept=".csv" onchange="handleFileSelect()">
+                    </div>
+                    <div class="form-group" id="importPreviewGroup" style="display:none;">
+                        <label>预览数据（前5行）</label>
+                        <div id="importPreview" style="max-height:200px;overflow-y:auto;"></div>
+                    </div>
+                    <div class="form-group">
+                        <label>
+                            <input type="checkbox" id="importUpdateExisting" checked> 更新已存在的字段（按字段编码匹配）
+                        </label>
+                    </div>
+                    <div class="hint-text" style="color:#666;">
+                        <strong>CSV文件格式要求：</strong><br>
+                        第一行为表头：字段编码,字段名称,字段类型,默认值,下拉选项,联动字段,联动配置(JSON格式)<br>
+                        字段类型：text(文本), number(数字), select(下拉选项)<br>
+                        联动配置示例：{"选项1":"值1,值2","选项2":"值3,值4"}
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-outline" onclick="closeImportModal()">取消</button>
+                    <button class="btn btn-primary" onclick="doImport()">开始导入</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/common.js"></script>
+    <script>
+        initPage('field_config');
+        loadFields();
+        loadLinkFieldOptions();
+
+        $('#fieldType').on('change', function() {
+            $('#optionsGroup').toggle($(this).val() === 'select');
+        });
+
+        function loadLinkFieldOptions(callback) {
+            apiGet('/api/field_meta/all', function(res) {
+                if (res.code === 200) {
+                    var html = '<option value="">无联动</option>';
+                    for (var i = 0; i < res.data.length; i++) {
+                        var f = res.data[i];
+                        if (f.field_type === 'select') {
+                            html += '<option value="' + f.field_code + '" data-options="' + (f.options || '').replace(/"/g, '&quot;') + '">' + f.field_name + ' (' + f.field_code + ')</option>';
+                        }
+                    }
+                    $('#linkField').html(html);
+                    _linkFieldOptionsLoaded = true;
+                }
+                if (callback) callback();
+            });
+        }
+
+        function onLinkFieldChange() {
+            var val = $('#linkField').val();
+            if (val) {
+                $('#linkConfigGroup').show();
+                var options = $('#linkField option:selected').attr('data-options') || '';
+                var editId = $('#editId').val();
+                if (editId) {
+                    loadLinkageFromDB(editId, options);
+                } else {
+                    renderLinkTable(options);
+                }
+            } else {
+                $('#linkConfigGroup').hide();
+            }
+        }
+
+        function loadLinkageFromDB(fieldId, sourceOptions) {
+            apiGet('/api/field/' + fieldId + '/linkage', function(res) {
+                if (res.code === 200) {
+                    var linkageMap = {};
+                    for (var i = 0; i < res.data.length; i++) {
+                        var item = res.data[i];
+                        linkageMap[item.source_option] = item.target_options;
+                    }
+                    renderLinkTable(sourceOptions, linkageMap);
+                } else {
+                    renderLinkTable(sourceOptions);
+                }
+            });
+        }
+
+        function renderLinkTable(options, linkageMap) {
+            linkageMap = linkageMap || {};
+            var opts = options ? options.split(',') : [];
+            var html = '';
+            
+            for (var i = 0; i < opts.length; i++) {
+                var optVal = opts[i].trim();
+                if (!optVal) continue;
+                var targetOpts = linkageMap[optVal] || '';
+                html += '<tr>';
+                html += '<td><span style="font-weight:600;">' + optVal + '</span></td>';
+                html += '<td><input type="text" class="form-control link-target-input" data-source-option="' + optVal.replace(/"/g, '&quot;') + '" value="' + targetOpts.replace(/"/g, '&quot;') + '" placeholder="输入选项，逗号分隔"></td>';
+                html += '<td></td>';
+                html += '</tr>';
+            }
+            
+            $('#linkConfigBody').html(html);
+        }
+
+        function getLinkageList() {
+            var list = [];
+            $('.link-target-input').each(function() {
+                var sourceOpt = $(this).attr('data-source-option');
+                var targetOpts = $(this).val().trim();
+                if (sourceOpt) {
+                    list.push({
+                        source_option: sourceOpt,
+                        target_options: targetOpts
+                    });
+                }
+            });
+            return list;
+        }
+
+        function loadFields() {
+            apiGet('/api/field_meta/all', function(res) {
+                if (res.code === 200) {
+                    _fieldList = res.data;
+                    renderTable(res.data);
+                }
+            });
+        }
+
+        function renderTable(list) {
+            var html = '';
+            for (var i = 0; i < list.length; i++) {
+                var f = list[i];
+                var typeMap = { text: '文本', number: '数字', select: '下拉选项' };
+                var statusBadge = f.is_active ? '<span class="badge badge-success">启用</span>' : '<span class="badge badge-danger">停用</span>';
+                var optsText = f.options || '-';
+                if (optsText === '-') {
+                    optsHtml = '-';
+                } else {
+                    var optCount = optsText.split(',').length;
+                    if (optsText.length > 20) {
+                        optsHtml = '<div class="field-table-wrap" onclick="this.classList.toggle(\'field-table-expand\')" title="点击展开/收起"><span style="color:#4361ee;font-weight:500;">共' + optCount + '项</span> ' + escapeHtml(optsText.substring(0, 20)) + '...</div>';
+                    } else {
+                        optsHtml = '<span title="' + escapeHtml(optsText) + '">' + escapeHtml(optsText) + '</span>';
+                    }
+                }
+                html += '<tr>';
+                html += '<td>' + (i + 1) + '</td>';
+                html += '<td><code>' + escapeHtml(f.field_code) + '</code></td>';
+                html += '<td>' + escapeHtml(f.field_name) + '</td>';
+                html += '<td>' + escapeHtml(typeMap[f.field_type] || f.field_type) + '</td>';
+                html += '<td>' + escapeHtml(f.default_val || '-') + '</td>';
+                html += '<td style="max-width:220px;">' + optsHtml + '</td>';
+                html += '<td>' + statusBadge + '</td>';
+                html += '<td>';
+                html += '<button class="btn btn-sm btn-info" onclick="editField(' + f.id + ')">编辑</button> ';
+                if (f.is_active) {
+                    html += '<button class="btn btn-sm btn-warning" onclick="toggleField(' + f.id + ',0)">停用</button> ';
+                } else {
+                    html += '<button class="btn btn-sm btn-success" onclick="toggleField(' + f.id + ',1)">启用</button> ';
+                }
+                html += '<button class="btn btn-sm btn-danger" onclick="deleteField(' + f.id + ')">删除</button>';
+                html += '</td>';
+                html += '</tr>';
+            }
+            $('#fieldTable').html(html || '<tr><td colspan="8" class="text-center" style="color:#999;">暂无自定义字段</td></tr>');
+        }
+
+        function showAddModal() {
+            $('#editId').val('');
+            $('#fieldCode').val('').prop('disabled', false);
+            $('#fieldName').val('');
+            $('#fieldType').val('text');
+            $('#defaultVal').val('');
+            $('#fieldOptions').val('');
+            $('#optionsGroup').hide();
+            $('#linkField').val('');
+            $('#linkConfigBody').empty();
+            $('#linkConfigGroup').hide();
+            $('#modalTitle').text('新增字段');
+            $('#fieldModal').show();
+        }
+
+        var _fieldList = [];
+        var _linkFieldOptionsLoaded = false;
+        function editField(id) {
+            function doEdit() {
+                var f = _fieldList.find(function(item) { return item.id === id; });
+                if (!f) return;
+                $('#editId').val(f.id);
+                $('#fieldCode').val(f.field_code).prop('disabled', true);
+                $('#fieldName').val(f.field_name);
+                $('#fieldType').val(f.field_type);
+                $('#defaultVal').val(f.default_val);
+                $('#fieldOptions').val(f.options || '');
+                $('#optionsGroup').toggle(f.field_type === 'select');
+                $('#linkField').val(f.link_field || '');
+                onLinkFieldChange();
+                $('#modalTitle').text('编辑字段');
+                $('#fieldModal').show();
+            }
+
+            apiGet('/api/field_meta/all', function(res) {
+                if (res.code === 200) {
+                    _fieldList = res.data;
+                    if (_linkFieldOptionsLoaded) {
+                        doEdit();
+                    } else {
+                        loadLinkFieldOptions(function() { doEdit(); });
+                    }
+                }
+            });
+        }
+
+        function closeModal() {
+            $('#fieldModal').hide();
+        }
+
+        function saveField() {
+            var id = $('#editId').val();
+            var data = {
+                field_code: $('#fieldCode').val().trim(),
+                field_name: $('#fieldName').val().trim(),
+                field_type: $('#fieldType').val(),
+                default_val: $('#defaultVal').val().trim(),
+                options: $('#fieldOptions').val().trim(),
+                link_field: $('#linkField').val() || ''
+            };
+            if (!data.field_name) { showToast('字段名称不能为空', 'error'); return; }
+            if (!id && !data.field_code) { showToast('字段编码不能为空', 'error'); return; }
+
+            var currentLinkages = getLinkageList();
+            console.log('saveField: currentLinkages =', JSON.stringify(currentLinkages));
+
+            if (data.link_field) {
+                var linkOptions = {};
+                for (var i = 0; i < currentLinkages.length; i++) {
+                    var link = currentLinkages[i];
+                    linkOptions[link.source_option] = link.target_options;
+                }
+                data.link_options = linkOptions;
+            }
+
+            function saveLinkage(fid) {
+                console.log('saveLinkage: fid =', fid, 'linkages =', JSON.stringify(currentLinkages));
+                apiPut('/api/field/' + fid + '/linkage', { linkages: currentLinkages }, function(linkRes) {
+                    if (linkRes.code === 200) {
+                        showToast(id ? '更新成功' : '添加成功', 'success');
+                        closeModal();
+                        loadFields();
+                    } else {
+                        showToast('联动保存失败: ' + linkRes.msg, 'error');
+                        console.error('联动保存返回错误:', linkRes);
+                    }
+                }, function(xhr) {
+                    var errMsg = '服务器错误';
+                    try { errMsg = JSON.parse(xhr.responseText).msg || errMsg; } catch(e) {}
+                    showToast('联动保存失败: ' + errMsg, 'error');
+                    console.error('联动保存失败:', xhr.status, xhr.responseText);
+                });
+            }
+
+            if (id) {
+                apiPut('/api/field_meta/' + id, data, function(res) {
+                    if (res.code === 200) {
+                        if (data.link_field) {
+                            saveLinkage(id);
+                        } else {
+                            showToast('更新成功', 'success');
+                            closeModal();
+                            loadFields();
+                        }
+                    } else {
+                        showToast(res.msg, 'error');
+                    }
+                }, function(xhr) {
+                    var errMsg = '服务器错误';
+                    try { errMsg = JSON.parse(xhr.responseText).msg || errMsg; } catch(e) {}
+                    showToast('保存失败: ' + errMsg, 'error');
+                    console.error('字段更新失败:', xhr.status, xhr.responseText);
+                });
+            } else {
+                apiPost('/api/field_meta', data, function(res) {
+                    console.log('add_field_meta response:', JSON.stringify(res));
+                    if (res.code === 200) {
+                        var newId = res.data && res.data.id;
+                        if (data.link_field && newId) {
+                            saveLinkage(newId);
+                        } else if (data.link_field && !newId) {
+                            showToast('字段已添加但联动保存失败：未获取到字段ID', 'error');
+                            console.error('未获取到新字段ID:', res);
+                            closeModal();
+                            loadFields();
+                        } else {
+                            showToast('添加成功', 'success');
+                            closeModal();
+                            loadFields();
+                        }
+                    } else {
+                        showToast(res.msg, 'error');
+                    }
+                }, function(xhr) {
+                    var errMsg = '服务器错误';
+                    try { errMsg = JSON.parse(xhr.responseText).msg || errMsg; } catch(e) {}
+                    showToast('保存失败: ' + errMsg, 'error');
+                    console.error('字段添加失败:', xhr.status, xhr.responseText);
+                });
+            }
+        }
+
+        function toggleField(id, active) {
+            apiGet('/api/field_meta/all', function(res) {
+                if (res.code === 200) {
+                    var f = res.data.find(function(item) { return item.id === id; });
+                    if (!f) return;
+                    apiPut('/api/field_meta/' + id, {
+                        field_name: f.field_name,
+                        field_type: f.field_type,
+                        default_val: f.default_val,
+                        options: f.options || '',
+                        is_active: active
+                    }, function(res2) {
+                        if (res2.code === 200) {
+                            showToast(active ? '已启用' : '已停用', 'success');
+                            loadFields();
+                        }
+                    });
+                }
+            });
+        }
+
+        function deleteField(id) {
+            if (!confirm('确定删除该字段？删除后人员对应数据也将清除。')) return;
+            apiDelete('/api/field_meta/' + id, function(res) {
+                if (res.code === 200) {
+                    showToast('删除成功', 'success');
+                    loadFields();
+                }
+            });
+        }
+
+        function exportFieldsAsCSV() {
+            var headers = [
+                '字段编码',
+                '字段名称',
+                '字段类型',
+                '默认值',
+                '下拉选项',
+                '联动字段',
+                '联动配置(JSON格式)'
+            ];
+            
+            var rows = [headers.join(',')];
+            
+            rows.push('');
+            rows.push('=== 文本类型字段示例 ===');
+            rows.push('text_field,文本字段示例,text,默认值,,,{}');
+            
+            rows.push('');
+            rows.push('=== 数字类型字段示例 ===');
+            rows.push('number_field,数字字段示例,number,0,,,{}');
+            
+            rows.push('');
+            rows.push('=== 下拉选项字段示例 ===');
+            rows.push('select_field,下拉字段示例,select,,选项1,选项2,选项3,,{}');
+            
+            rows.push('');
+            rows.push('=== 联动字段示例（必须先存在名为dept的下拉字段）===');
+            rows.push('unit_field,联动字段示例,select,,,dept,"{\"人社局\":\"机保中心,社保中心\",\"教育局\":\"一园,二园,三园\",\"财政局\":\"结算中心,国企中心\"}"');
+            
+            rows.push('');
+            rows.push('=== 更多示例 ===');
+            rows.push('gender,性别,select,,男,女,,{}');
+            rows.push('status,状态,select,,在职,离职,,{}');
+            
+            var csvContent = '\uFEFF' + rows.join('\n');
+            
+            var blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            var link = document.createElement('a');
+            var url = URL.createObjectURL(blob);
+            link.setAttribute('href', url);
+            link.setAttribute('download', '字段配置模板_' + formatDate(new Date()) + '.csv');
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            
+            showToast('导出成功', 'success');
+        }
+
+        function escapeCSV(value) {
+            if (typeof value !== 'string') {
+                value = String(value);
+            }
+            if (value.indexOf(',') !== -1 || value.indexOf('"') !== -1 || value.indexOf('\n') !== -1) {
+                return '"' + value.replace(/"/g, '""') + '"';
+            }
+            return value;
+        }
+
+        function formatDate(date) {
+            var year = date.getFullYear();
+            var month = String(date.getMonth() + 1).padStart(2, '0');
+            var day = String(date.getDate()).padStart(2, '0');
+            var hour = String(date.getHours()).padStart(2, '0');
+            var minute = String(date.getMinutes()).padStart(2, '0');
+            return year + month + day + '_' + hour + minute;
+        }
+
+        var _importData = [];
+        function showImportModal() {
+            _importData = [];
+            $('#importFile').val('');
+            $('#importPreviewGroup').hide();
+            $('#importModal').show();
+        }
+
+        function closeImportModal() {
+            $('#importModal').hide();
+        }
+
+        function handleFileSelect() {
+            var file = $('#importFile')[0].files[0];
+            if (!file) return;
+
+            var reader = new FileReader();
+            reader.onload = function(e) {
+                var content = e.target.result;
+                try {
+                    _importData = parseCSV(content);
+                    showImportPreview(_importData);
+                } catch (err) {
+                    showToast('CSV解析失败: ' + err.message, 'error');
+                    console.error('CSV解析错误:', err);
+                }
+            };
+            reader.readAsText(file, 'UTF-8');
+        }
+
+        function parseCSV(content) {
+            var lines = content.split(/\r?\n/);
+            var result = [];
+            var headers = parseCSVLine(lines[0]);
+            
+            for (var i = 1; i < lines.length; i++) {
+                var line = lines[i].trim();
+                if (!line) continue;
+                if (line.startsWith('===')) continue;
+                
+                var values = parseCSVLine(line);
+                var row = {};
+                for (var j = 0; j < headers.length; j++) {
+                    row[headers[j].trim()] = j < values.length ? values[j] : '';
+                }
+                result.push(row);
+            }
+            return result;
+        }
+
+        function parseCSVLine(line) {
+            var result = [];
+            var current = '';
+            var inQuotes = false;
+            
+            for (var i = 0; i < line.length; i++) {
+                var char = line[i];
+                if (char === '"') {
+                    if (inQuotes && line[i+1] === '"') {
+                        current += '"';
+                        i++;
+                    } else {
+                        inQuotes = !inQuotes;
+                    }
+                } else if (char === ',' && !inQuotes) {
+                    result.push(current);
+                    current = '';
+                } else {
+                    current += char;
+                }
+            }
+            result.push(current);
+            return result;
+        }
+
+        function showImportPreview(data) {
+            if (!data || data.length === 0) {
+                $('#importPreview').html('<p style="color:#999;">没有数据</p>');
+                $('#importPreviewGroup').hide();
+                return;
+            }
+
+            var previewData = data.slice(0, 5);
+            var html = '<table class="link-table" style="font-size:12px;">';
+            html += '<thead><tr>';
+            var headers = ['字段编码', '字段名称', '字段类型', '联动字段'];
+            headers.forEach(function(h) {
+                html += '<th>' + h + '</th>';
+            });
+            html += '</tr></thead><tbody>';
+            
+            previewData.forEach(function(row, index) {
+                html += '<tr>';
+                html += '<td>' + (row['字段编码'] || row['field_code'] || '') + '</td>';
+                html += '<td>' + (row['字段名称'] || row['field_name'] || '') + '</td>';
+                html += '<td>' + (row['字段类型'] || row['field_type'] || '') + '</td>';
+                html += '<td>' + (row['联动字段'] || row['link_field'] || '') + '</td>';
+                html += '</tr>';
+            });
+            html += '</tbody></table>';
+            if (data.length > 5) {
+                html += '<p style="margin-top:10px;color:#666;font-size:12px;">... 还有 ' + (data.length - 5) + ' 行数据</p>';
+            }
+            
+            $('#importPreview').html(html);
+            $('#importPreviewGroup').show();
+        }
+
+        var _importing = false;
+
+        function doImport() {
+            console.log('=== doImport 被调用 ===');
+            console.log('_importing:', _importing);
+
+            if (_importing) {
+                console.log('⛔ 阻止重复导入');
+                alert('正在导入中，请稍候...');
+                return;
+            }
+
+            if (!_importData || _importData.length === 0) {
+                console.log('❌ 没有数据');
+                alert('请先选择CSV文件');
+                return;
+            }
+
+            console.log('✅ 开始导入流程');
+            console.log('数据行数:', _importData.length);
+
+            _importing = true;
+            var $btn = $(event.target);
+            var originalText = $btn.html();
+            $btn.html('⏳ 导入中...').prop('disabled', true);
+            console.log('按钮已禁用');
+
+            try {
+                var updateExisting = $('#importUpdateExisting').prop('checked');
+                var fields = [];
+                var errors = [];
+
+                for (var i = 0; i < _importData.length; i++) {
+                    var row = _importData[i];
+                    var fieldCode = (row['字段编码'] || row['field_code'] || '').trim();
+                    var fieldName = (row['字段名称'] || row['field_name'] || '').trim();
+                    var fieldType = row['字段类型'] || row['field_type'] || 'text';
+                    var defaultVal = row['默认值'] || row['default_val'] || '';
+                    var options = row['下拉选项'] || row['options'] || '';
+                    var linkField = (row['联动字段'] || row['link_field'] || '').trim();
+                    var linkOptionsStr = row['联动配置(JSON格式)'] || row['link_options'] || row['linkOptions'] || '';
+
+                    if (!fieldCode || !fieldName) {
+                        errors.push('第' + (i + 2) + '行：字段编码或名称为空');
+                        continue;
+                    }
+
+                    var linkOptions = {};
+                    if (linkOptionsStr) {
+                        try {
+                            linkOptions = JSON.parse(linkOptionsStr);
+                            if (typeof linkOptions !== 'object') {
+                                throw new Error('不是对象');
+                            }
+                        } catch (e) {
+                            errors.push('第' + (i + 2) + '行：联动配置JSON格式错误');
+                            continue;
+                        }
+                    }
+
+                    fields.push({
+                        field_code: fieldCode,
+                        field_name: fieldName,
+                        field_type: fieldType,
+                        default_val: defaultVal,
+                        options: options,
+                        link_field: linkField,
+                        link_options: linkOptions
+                    });
+                }
+
+                console.log('解析完成 - 有效字段:', fields.length, '错误:', errors.length);
+
+                if (fields.length === 0) {
+                    console.log('❌ 没有有效字段');
+                    _importing = false;
+                    $btn.html(originalText).prop('disabled', false);
+                    alert('没有有效的数据可导入\n' + errors.join('\n'));
+                    return;
+                }
+
+                console.log('准备调用API...');
+                console.log('发送数据:', JSON.stringify(fields).substring(0, 200) + '...');
+
+                apiPost('/api/field_meta/import', {
+                    fields: fields,
+                    overwrite: updateExisting
+                }, function(res) {
+                    console.log('✅ API响应成功:', res);
+                    _importing = false;
+                    $btn.html(originalText).prop('disabled', false);
+
+                    if (res.code === 200) {
+                        var data = res.data || {};
+                        var msg = '✅ 导入完成！\n';
+                        msg += '新增: ' + (data.added || 0) + ' 个\n';
+                        msg += '更新: ' + (data.updated || 0) + ' 个\n';
+                        msg += '跳过: ' + (data.skipped || 0) + ' 个\n';
+                        if (data.link_added > 0) {
+                            msg += '联动配置: ' + data.link_added + ' 条\n';
+                        }
+                        if (errors.length > 0) {
+                            msg += '\n⚠️ 数据验证警告:\n' + errors.join('\n');
+                        }
+                        if (data.errors && data.errors.length > 0) {
+                            msg += '\n⚠️ 处理警告:\n' + data.errors.join('\n');
+                        }
+                        alert(msg);
+                        closeImportModal();
+                        loadFields();
+                    } else {
+                        alert('❌ 导入失败: ' + (res.msg || '未知错误') + 
+                              (res.error ? '\n\n详情: ' + res.error : ''));
+                    }
+                }, function(xhr) {
+                    console.error('❌ API请求失败:', xhr);
+                    _importing = false;
+                    $btn.html(originalText).prop('disabled', false);
+                    
+                    var errorMsg = '❌ 导入失败: 网络错误';
+                    try {
+                        var response = JSON.parse(xhr.responseText);
+                        if (response.msg) {
+                            errorMsg = '❌ ' + response.msg;
+                            if (response.error) {
+                                errorMsg += '\n\n详情: ' + response.error;
+                            }
+                        }
+                    } catch(e) {}
+                    alert(errorMsg + '\n\n状态码: ' + (xhr.status || '未知'));
+                });
+            } catch (e) {
+                console.error('❌ 异常:', e);
+                _importing = false;
+                $btn.html(originalText).prop('disabled', false);
+                alert('❌ 导入异常: ' + e.message);
+            }
+        }
+
+    </script>
+</body>
+</html>

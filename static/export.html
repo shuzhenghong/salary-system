@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>报表导出 - 人员薪酬管理系统</title>
+    <link rel="stylesheet" href="css/style.css">
+    <script src="https://cdn.bootcdn.net/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+</head>
+<body>
+    <div class="layout">
+        <div class="sidebar"></div>
+        <div class="main-content">
+            <div class="top-header">
+                <span class="page-title">报表导出</span>
+                <div class="user-info">
+                    <span id="username"></span>
+                    <button class="btn btn-sm btn-outline" onclick="logout()">退出</button>
+                </div>
+            </div>
+            <div class="page-body">
+                <div class="card">
+                    <div class="card-title">人员档案导出</div>
+                    <p style="color:#6c757d;font-size:13px;margin-bottom:16px;">导出所有人员档案信息（含固定字段+自定义字段）为Excel文件</p>
+                    <button class="btn btn-primary" onclick="exportStaff()">导出人员档案 Excel</button>
+                </div>
+
+                <div class="card">
+                    <div class="card-title">薪资明细导出</div>
+                    <div class="toolbar">
+                        <label style="font-weight:500;">帐套：</label>
+                        <select class="form-control" id="exportBook" style="min-width:180px;">
+                            <option value="">全部</option>
+                        </select>
+                        <label style="font-weight:500;">年份：</label>
+                        <input type="number" class="form-control" id="exportYear" style="width:100px;">
+                        <label style="font-weight:500;">月份：</label>
+                        <select class="form-control" id="exportMonth" style="width:80px;">
+                            <option value="">全部</option>
+                        </select>
+                    </div>
+                    <p style="color:#6c757d;font-size:13px;margin-bottom:16px;">按条件导出薪资核算明细表为Excel文件</p>
+                    <button class="btn btn-success" onclick="exportSalary()">导出薪资明细 Excel</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/common.js"></script>
+    <script>
+        initPage('export');
+
+        var now = new Date();
+        $('#exportYear').val(now.getFullYear());
+        var monthHtml = '<option value="">全部</option>';
+        for (var m = 1; m <= 12; m++) {
+            monthHtml += '<option value="' + m + '">' + m + '月</option>';
+        }
+        $('#exportMonth').html(monthHtml);
+
+        apiGet('/api/salary_book', function(res) {
+            if (res.code === 200) {
+                var html = '<option value="">全部</option>';
+                for (var i = 0; i < res.data.length; i++) {
+                    html += '<option value="' + res.data[i].id + '">' + res.data[i].book_name + '</option>';
+                }
+                $('#exportBook').html(html);
+            }
+        });
+
+        function exportStaff() {
+            showToast('正在生成文件...', 'info');
+            window.location.href = API + '/api/export/staff';
+        }
+
+        function exportSalary() {
+            var params = [];
+            var bookId = $('#exportBook').val();
+            var year = $('#exportYear').val();
+            var month = $('#exportMonth').val();
+            if (bookId) params.push('book_id=' + bookId);
+            if (year) params.push('year=' + year);
+            if (month) params.push('month=' + month);
+
+            showToast('正在生成文件...', 'info');
+            window.location.href = API + '/api/export/salary?' + params.join('&');
+        }
+    </script>
+</body>
+</html>

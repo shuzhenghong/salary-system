@@ -1,0 +1,1294 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>人员档案 - 人员薪酬管理系统</title>
+    <link rel="stylesheet" href="css/style.css">
+    <script src="https://cdn.bootcdn.net/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+</head>
+<body>
+    <div class="layout">
+        <div class="sidebar"></div>
+        <div class="main-content">
+            <div class="top-header">
+                <span class="page-title">人员档案管理</span>
+                <div class="user-info">
+                    <span id="username"></span>
+                    <button class="btn btn-sm btn-outline" onclick="logout()">退出</button>
+                </div>
+            </div>
+            <div class="page-body">
+                <div class="card">
+                    <div class="toolbar">
+                        <input type="text" class="form-control" id="searchName" placeholder="姓名搜索" style="min-width:120px;">
+                        <div id="ssDept" style="min-width:160px;"></div>
+                        <div id="ssUnit" style="min-width:160px;"></div>
+                        <div id="ssStatus" style="min-width:120px;"></div>
+                        <button class="btn btn-primary" onclick="loadStaff(1)">查询</button>
+                        <button class="btn btn-success" onclick="showAddModal()">+ 新增人员</button>
+                        <button class="btn btn-info" onclick="showImportModal()">导入</button>
+                        <button class="btn btn-outline" onclick="downloadTemplate()">下载模板</button>
+                        <button class="btn btn-danger" id="batchDeleteBtn" style="display:none;" onclick="batchDeleteStaff()">批量删除 (<span id="selectedCount">0</span>)</button>
+                    </div>
+                    <div style="overflow-x:auto;">
+                        <table>
+                            <thead id="staffThead"></thead>
+                            <tbody id="staffTbody"></tbody>
+                        </table>
+                    </div>
+                    <div class="pagination" id="pagination"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="staffModal" style="display:none;">
+        <div class="modal-overlay">
+            <div class="modal" style="width:720px;">
+                <div class="modal-header">
+                    <h4 id="modalTitle">新增人员</h4>
+                    <button class="close-btn" onclick="closeModal()">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <input type="hidden" id="editId">
+                    <div id="formFieldsArea"></div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-outline" onclick="closeModal()">取消</button>
+                    <button class="btn btn-primary" onclick="saveStaff()">保存</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="assessModal" style="display:none;">
+        <div class="modal-overlay">
+            <div class="modal" style="width:600px;">
+                <div class="modal-header">
+                    <h4>考核管理 - <span id="assessStaffName"></span></h4>
+                    <button class="close-btn" onclick="closeAssessModal()">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <input type="hidden" id="assessStaffId">
+                    <div class="toolbar" style="margin-bottom:16px;">
+                        <label style="font-weight:500;">年份：</label>
+                        <input type="number" class="form-control" id="assessYear" style="width:100px;">
+                        <label style="font-weight:500;">等次：</label>
+                        <select class="form-control" id="assessGrade" style="min-width:120px;">
+                            <option value="优秀">优秀</option>
+                            <option value="称职">称职</option>
+                            <option value="称职以下">称职以下</option>
+                        </select>
+                        <label style="font-weight:500;">备注：</label>
+                        <input type="text" class="form-control" id="assessRemark" placeholder="可选" style="min-width:120px;">
+                        <button class="btn btn-primary" onclick="saveAssessment()">保存</button>
+                    </div>
+                    <table>
+                        <thead>
+                            <tr><th>年份</th><th>考核等次</th><th>备注</th><th>操作</th></tr>
+                        </thead>
+                        <tbody id="assessTable"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="changeModal" style="display:none;">
+        <div class="modal-overlay">
+            <div class="modal" style="width:700px;max-height:80vh;">
+                <div class="modal-header">
+                    <h4>变更记录 - <span id="changeStaffName"></span></h4>
+                    <button class="close-btn" onclick="closeChangeModal()">&times;</button>
+                </div>
+                <div class="modal-body" style="max-height:60vh;overflow-y:auto;">
+                    <table>
+                        <thead>
+                            <tr><th>序号</th><th>变更项目</th><th>原信息</th><th>新信息</th><th>操作人</th><th>变更时间</th></tr>
+                        </thead>
+                        <tbody id="changeTable"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="detailModal" style="display:none;">
+        <div class="modal-overlay">
+            <div class="modal" style="width:900px;max-height:85vh;">
+                <div class="modal-header">
+                    <h4>人员详情 - <span id="detailStaffName"></span></h4>
+                    <button class="close-btn" onclick="closeDetailModal()">&times;</button>
+                </div>
+                <div class="modal-body" style="max-height:70vh;overflow-y:auto;" id="detailBody">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="staffChangeModal" style="display:none;">
+        <div class="modal-overlay">
+            <div class="modal" style="width:500px;">
+                <div class="modal-header">
+                    <h4>变更信息 - <span id="staffChangeStaffName"></span></h4>
+                    <button class="close-btn" onclick="closeStaffChangeModal()">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <input type="hidden" id="staffChangeId">
+                    <div class="form-group">
+                        <label>变更年月</label>
+                        <input type="month" class="form-control" id="staffChangeMonth">
+                    </div>
+                    <div class="form-group">
+                        <label>变更项目</label>
+                        <select class="form-control" id="staffChangeField" onchange="onChangeFieldSelect()">
+                            <option value="">请选择项目</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>原信息</label>
+                        <input type="text" class="form-control" id="staffChangeOldValue" readonly>
+                    </div>
+                    <div class="form-group" id="staffChangeNewGroup">
+                        <label>新信息</label>
+                        <input type="text" class="form-control" id="staffChangeNewValue">
+                    </div>
+                    <div class="form-group">
+                        <label>备注</label>
+                        <textarea class="form-control" id="staffChangeRemark" rows="2"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-outline" onclick="closeStaffChangeModal()">取消</button>
+                    <button class="btn btn-primary" onclick="saveStaffChange()">确认变更</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="importModal" style="display:none;">
+        <div class="modal-overlay">
+            <div class="modal" style="width:520px;">
+                <div class="modal-header">
+                    <h4>导入人员数据</h4>
+                    <button class="close-btn" onclick="closeImportModal()">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <div style="margin-bottom:16px;padding:12px;background:#f0f7ff;border-radius:6px;font-size:13px;color:#555;">
+                        <p style="margin:0 0 8px 0;"><b>导入说明：</b></p>
+                        <p style="margin:0 0 4px 0;">1. 请先点击"下载模板"获取最新导入模板</p>
+                        <p style="margin:0 0 4px 0;">2. 模板列会根据当前字段配置自动生成</p>
+                        <p style="margin:0 0 4px 0;">3. 姓名为必填项，同名人员将更新已有记录</p>
+                        <p style="margin:0;">4. 支持 .xlsx / .xls 格式</p>
+                    </div>
+                    <div class="form-group">
+                        <label>选择文件</label>
+                        <input type="file" id="importFile" class="form-control" accept=".xlsx,.xls">
+                    </div>
+                    <div id="importResult" style="display:none;margin-top:12px;padding:12px;border-radius:6px;font-size:13px;"></div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-outline" onclick="closeImportModal()">关闭</button>
+                    <button class="btn btn-primary" id="btnImport" onclick="doImport()">开始导入</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/common.js"></script>
+    <script>
+        var _fields = [];
+        var _page = 1;
+        var _deptUnits = {};
+        initPage('staff_manage');
+
+        loadDeptUnits();
+
+        function loadDeptUnits() {
+            apiGet('/api/dept_unit_map', function(res) {
+                if (res.code === 200) {
+                    _deptUnits = res.data;
+                }
+                loadDeptOptions();
+            });
+        }
+
+        function loadDeptOptions() {
+            apiGet('/api/dept_list', function(res) {
+                if (res.code === 200) {
+                    var deptData = [{value: '', text: '全部部门'}];
+                    for (var i = 0; i < res.data.length; i++) {
+                        deptData.push({value: res.data[i], text: res.data[i]});
+                    }
+                    $('#ssDept').searchSelect({
+                        data: deptData,
+                        placeholder: '全部部门',
+                        searchPlaceholder: '搜索部门...',
+                        value: '',
+                        onChange: function(val) { onDeptChange(val); }
+                    });
+                }
+            });
+
+            $('#ssUnit').searchSelect({
+                data: [{value: '', text: '全部单位'}],
+                placeholder: '全部单位',
+                searchPlaceholder: '搜索单位...',
+                value: ''
+            });
+
+            $('#ssStatus').searchSelect({
+                data: [
+                    {value: '', text: '全部状态'},
+                    {value: '在职', text: '在职'},
+                    {value: '离职', text: '离职'}
+                ],
+                placeholder: '全部状态',
+                searchPlaceholder: '搜索状态...',
+                value: '在职'
+            });
+        }
+
+        function onDeptChange(dept) {
+            var unitData = [{value: '', text: '全部单位'}];
+            if (dept && _deptUnits[dept]) {
+                var units = _deptUnits[dept];
+                for (var i = 0; i < units.length; i++) {
+                    unitData.push({value: units[i], text: units[i]});
+                }
+            } else if (dept) {
+                apiGet('/api/unit_list?dept=' + encodeURIComponent(dept), function(res) {
+                    if (res.code === 200) {
+                        var uData = [{value: '', text: '全部单位'}];
+                        for (var i = 0; i < res.data.length; i++) {
+                            uData.push({value: res.data[i], text: res.data[i]});
+                        }
+                        $('#ssUnit')[0].setOptions(uData);
+                        $('#ssUnit')[0].setValue('');
+                    }
+                });
+                return;
+            }
+            $('#ssUnit')[0].setOptions(unitData);
+            $('#ssUnit')[0].setValue('');
+        }
+
+        function loadStaff(page) {
+            _page = page || 1;
+            var name = $('#searchName').val().trim();
+            var dept = $('#ssDept').data('value') || '';
+            var unit = $('#ssUnit').data('value') || '';
+            var status = $('#ssStatus').data('value') || '';
+            var params = 'page=' + _page + '&per_page=15';
+            if (name) params += '&name=' + encodeURIComponent(name);
+            if (dept) params += '&dept=' + encodeURIComponent(dept);
+            if (unit) params += '&unit=' + encodeURIComponent(unit);
+            if (status) params += '&status=' + encodeURIComponent(status);
+
+            apiGet('/api/staff?' + params, function(res) {
+                if (res.code === 200) {
+                    _fields = res.data.fields || [];
+                    updateStatusOptions();
+                    renderThead();
+                    renderTbody(res.data.list);
+                    renderPagination('#pagination', res.data.total, res.data.page, res.data.per_page, 'loadStaff');
+                }
+            });
+        }
+
+        function updateStatusOptions() {
+            var statusField = _fields.find(function(f) { return f.field_code === 'status'; });
+            
+            var statusData = [{value: '', text: '全部状态'}];
+            
+            if (statusField && statusField.options) {
+                var opts = statusField.options.split(',');
+                for (var i = 0; i < opts.length; i++) {
+                    var optVal = opts[i].trim();
+                    if (optVal) {
+                        statusData.push({value: optVal, text: optVal});
+                    }
+                }
+            } else {
+                statusData.push(
+                    {value: '在职', text: '在职'},
+                    {value: '离职', text: '离职'}
+                );
+            }
+            
+            if ($('#ssStatus')[0] && typeof $('#ssStatus')[0].setOptions === 'function') {
+                $('#ssStatus')[0].setOptions(statusData);
+            }
+        }
+
+        function renderThead() {
+            var html = '<tr><th style="width:40px;"><input type="checkbox" id="selectAllStaff" onclick="toggleSelectAll(this)"></th><th>序号</th>';
+            var showFields = _fields.filter(function(f) { return f.show_in_list; });
+            showFields.sort(function(a, b) { return a.sort_num - b.sort_num; });
+            for (var i = 0; i < showFields.length; i++) {
+                html += '<th>' + showFields[i].field_name + '</th>';
+            }
+            html += '<th>工龄</th><th>套改年限</th><th>操作</th></tr>';
+            $('#staffThead').html(html);
+        }
+
+        function renderTbody(list) {
+            var showFields = _fields.filter(function(f) { return f.show_in_list; });
+            showFields.sort(function(a, b) { return a.sort_num - b.sort_num; });
+
+            var html = '';
+            for (var i = 0; i < list.length; i++) {
+                var s = list[i];
+                var isLocked = s.is_locked === 1 || s.is_locked === '1';
+                html += '<tr>';
+                html += '<td style="text-align:center;"><input type="checkbox" class="staff-checkbox" value="' + s.id + '" onclick="updateSelectedCount()"></td>';
+                html += '<td>' + (i + 1) + '</td>';
+                for (var j = 0; j < showFields.length; j++) {
+                    var code = showFields[j].field_code;
+                    var val = escapeHtml(s[code] || '-');
+                    if (code === 'status') {
+                        val = s.status === '在职' ? '<span class="badge badge-success">在职</span>' : '<span class="badge badge-danger">离职</span>';
+                    } else if (code === 'name') {
+                        var retirementStatus = s.retirement_status || 'normal';
+                        var retirementMsg = s.retirement_msg || '';
+                        var nameStyle = '';
+                        var nameTitle = escapeAttr(s.name || '');
+                        if (retirementStatus === 'retired') {
+                            nameStyle = 'color:#ff4d4f;font-weight:600;';
+                            if (retirementMsg) {
+                                nameTitle += ' - ' + escapeAttr(retirementMsg);
+                            }
+                        } else if (retirementStatus === 'approaching') {
+                            nameStyle = 'color:#fa8c16;font-weight:600;';
+                            if (retirementMsg) {
+                                nameTitle += ' - ' + escapeAttr(retirementMsg);
+                            }
+                        }
+                        val = '<span style="' + nameStyle + '" title="' + nameTitle + '">' + escapeHtml(s.name || '-') + '</span>';
+                    }
+                    html += '<td>' + val + '</td>';
+                }
+                html += '<td>' + (s.work_years || 0) + '</td>';
+                html += '<td>' + (s.taogai_years || 0) + '</td>';
+                html += '<td>';
+            if (isLocked) {
+                html += '<button class="btn btn-sm btn-info" onclick="showDetail(' + s.id + ')">详情</button> ';
+                html += '<button class="btn btn-sm btn-warning" onclick="showAssessment(' + s.id + ',\'' + escapeAttr(s.name || '') + '\')">考核</button> ';
+                html += '<button class="btn btn-sm btn-primary" onclick="showStaffChange(' + s.id + ',\'' + escapeAttr(s.name || '') + '\')">变更</button> ';
+                html += '<button class="btn btn-sm btn-success" onclick="unlockStaff(' + s.id + ')">解锁</button>';
+            } else {
+                html += '<button class="btn btn-sm btn-info" onclick="editStaff(' + s.id + ')">编辑</button> ';
+                html += '<button class="btn btn-sm btn-warning" onclick="showAssessment(' + s.id + ',\'' + escapeAttr(s.name || '') + '\')">考核</button> ';
+                html += '<button class="btn btn-sm btn-primary" onclick="lockStaff(' + s.id + ')">锁定</button> ';
+                html += '<button class="btn btn-sm btn-danger" onclick="deleteStaff(' + s.id + ')">删除</button>';
+            }
+            html += '</td></tr>';
+            }
+            $('#staffTbody').html(html || '<tr><td colspan="99" class="text-center" style="color:#999;">暂无数据</td></tr>');
+        }
+
+        function buildFormField(fieldMeta, value) {
+            var code = fieldMeta.field_code;
+            var name = fieldMeta.field_name;
+            var type = fieldMeta.field_type;
+            var defaultVal = fieldMeta.default_val || '';
+            var val = value !== undefined && value !== '' ? value : defaultVal;
+            var html = '<div class="form-group"><label>' + name + '</label>';
+
+            if (code === 'status') {
+                html += '<select class="form-control" id="sf_' + code + '">';
+                var opts = fieldMeta.options ? fieldMeta.options.split(',') : ['在职', '离职'];
+                for (var k = 0; k < opts.length; k++) {
+                    var sel = val === opts[k].trim() ? ' selected' : '';
+                    html += '<option value="' + opts[k].trim() + '"' + sel + '>' + opts[k].trim() + '</option>';
+                }
+                html += '</select>';
+            } else if (code === 'gender') {
+                html += '<select class="form-control" id="sf_' + code + '">';
+                html += '<option value="">请选择</option>';
+                var gopts = fieldMeta.options ? fieldMeta.options.split(',') : ['男', '女'];
+                for (var k = 0; k < gopts.length; k++) {
+                    var sel = val === gopts[k].trim() ? ' selected' : '';
+                    html += '<option value="' + gopts[k].trim() + '"' + sel + '>' + gopts[k].trim() + '</option>';
+                }
+                html += '</select>';
+            } else if (type === 'select') {
+                var linkField = fieldMeta.link_field || '';
+                html += '<select class="form-control" id="sf_' + code + '" data-link-field="' + linkField + '">';
+                html += '<option value="">请选择</option>';
+                if (fieldMeta.options) {
+                    var opts = fieldMeta.options.split(',');
+                    for (var k = 0; k < opts.length; k++) {
+                        var sel = val === opts[k].trim() ? ' selected' : '';
+                        html += '<option value="' + opts[k].trim() + '"' + sel + '>' + opts[k].trim() + '</option>';
+                    }
+                }
+                html += '</select>';
+            } else if (type === 'number') {
+                html += '<input type="number" class="form-control" id="sf_' + code + '" value="' + val + '">';
+            } else if (type === 'date') {
+                html += '<input type="date" class="form-control" id="sf_' + code + '" value="' + val + '">';
+            } else if (type === 'dateym') {
+                html += '<input type="month" class="form-control" id="sf_' + code + '" value="' + val + '">';
+            } else {
+                if (code === 'dept') {
+                    html += '<select class="form-control" id="sf_' + code + '" onchange="onFormDeptChange()">';
+                    html += '<option value="">请选择</option>';
+                    var deptKeys = Object.keys(_deptUnits);
+                    if (deptKeys.length > 0) {
+                        for (var k = 0; k < deptKeys.length; k++) {
+                            var sel = val === deptKeys[k] ? ' selected' : '';
+                            html += '<option value="' + deptKeys[k] + '"' + sel + '>' + deptKeys[k] + '</option>';
+                        }
+                    } else {
+                        html += '<input type="text" class="form-control" id="sf_' + code + '" value="' + val + '">';
+                    }
+                    html += '</select>';
+                } else if (code === 'unit') {
+                    html += '<select class="form-control" id="sf_' + code + '">';
+                    html += '<option value="">请选择</option>';
+                    if (val && _deptUnits) {
+                        var formDept = '';
+                        var deptEl = $('#sf_dept');
+                        if (deptEl.length) formDept = deptEl.val();
+                        if (formDept && _deptUnits[formDept]) {
+                            var units = _deptUnits[formDept];
+                            for (var k = 0; k < units.length; k++) {
+                                var sel = val === units[k] ? ' selected' : '';
+                                html += '<option value="' + units[k] + '"' + sel + '>' + units[k] + '</option>';
+                            }
+                        }
+                    }
+                    html += '</select>';
+                } else {
+                    html += '<input type="text" class="form-control" id="sf_' + code + '" value="' + val + '">';
+                }
+            }
+            html += '</div>';
+            return html;
+        }
+
+        function onFormDeptChange() {
+            var dept = $('#sf_dept').val();
+            var html = '<option value="">请选择</option>';
+            if (dept && _deptUnits[dept]) {
+                var units = _deptUnits[dept];
+                for (var i = 0; i < units.length; i++) {
+                    html += '<option value="' + units[i] + '">' + units[i] + '</option>';
+                }
+            }
+            $('#sf_unit').html(html);
+        }
+
+        var _linkCache = {};
+
+        function onLinkFieldChange(fieldCode) {
+            var selectEl = $('#sf_' + fieldCode);
+            var linkFieldCode = selectEl.data('link-field');
+            if (!linkFieldCode) return;
+            var linkVal = $('#sf_' + linkFieldCode).val();
+            if (!linkVal) {
+                var fieldMeta = _fields.find(function(f) { return f.field_code === fieldCode; });
+                if (fieldMeta && fieldMeta.options) {
+                    var html = '<option value="">请选择</option>';
+                    var opts = fieldMeta.options.split(',');
+                    for (var k = 0; k < opts.length; k++) {
+                        html += '<option value="' + opts[k].trim() + '">' + opts[k].trim() + '</option>';
+                    }
+                    selectEl.html(html);
+                }
+                return;
+            }
+            var cacheKey = fieldCode + '_' + linkVal;
+            if (_linkCache[cacheKey]) {
+                selectEl.html(_linkCache[cacheKey]);
+                return;
+            }
+            apiGet('/api/field_link_options?field=' + fieldCode + '&value=' + encodeURIComponent(linkVal) + '&link_field=' + encodeURIComponent(linkFieldCode), function(res) {
+                if (res.code === 200) {
+                    var html = '<option value="">请选择</option>';
+                    for (var i = 0; i < res.data.length; i++) {
+                        html += '<option value="' + res.data[i] + '">' + res.data[i] + '</option>';
+                    }
+                    _linkCache[cacheKey] = html;
+                    selectEl.html(html);
+                }
+            });
+        }
+
+        function initLinkFields() {
+            $('select[data-link-field]').each(function() {
+                var code = $(this).attr('id').replace('sf_', '');
+                var linkField = $(this).data('link-field');
+                if (linkField) {
+                    $('#sf_' + linkField).off('change.link').on('change.link', function() { onLinkFieldChange(code); });
+                    if ($('#sf_' + linkField).val()) {
+                        onLinkFieldChange(code);
+                    }
+                }
+            });
+        }
+
+        function renderFormFields(data) {
+            data = data || {};
+            var allFields = _fields.slice();
+            allFields.sort(function(a, b) { return a.sort_num - b.sort_num; });
+
+            var html = '<div class="form-row">';
+            var count = 0;
+            for (var i = 0; i < allFields.length; i++) {
+                var f = allFields[i];
+                if (!f.is_active) continue;
+                html += '<div class="form-group" style="flex:1;min-width:45%;">';
+                html += buildFormField(f, data[f.field_code]);
+                html += '</div>';
+                count++;
+                if (count % 2 === 0 && i < allFields.length - 1) {
+                    html += '</div><div class="form-row">';
+                }
+            }
+            if (count % 2 !== 0) {
+                html += '<div class="form-group" style="flex:1;min-width:45%;"></div>';
+            }
+            html += '</div>';
+            $('#formFieldsArea').html(html);
+            requestAnimationFrame(function() { initLinkFields(); });
+        }
+
+        function showAddModal() {
+            $('#editId').val('');
+            renderFormFields();
+            $('#modalTitle').text('新增人员');
+            $('#staffModal').show();
+        }
+
+        function editStaff(id) {
+            apiGet('/api/staff/' + id, function(res) {
+                if (res.code === 200) {
+                    var s = res.data;
+                    _fields = s._fields || _fields;
+                    $('#editId').val(s.id);
+                    renderFormFields(s);
+                    $('#modalTitle').text('编辑人员');
+                    $('#staffModal').show();
+                    // 延迟设置联动字段的值
+                    setTimeout(function() {
+                        // 先设置部门，再设置单位
+                        if (s.dept && s.unit) {
+                            onFormDeptChange();
+                            setTimeout(function() {
+                                $('#sf_unit').val(s.unit);
+                            }, 100);
+                        }
+                        // 处理其他联动字段
+                        for (var i = 0; i < _fields.length; i++) {
+                            var field = _fields[i];
+                            if (field.link_field && field.link_field !== 'dept' && field.link_field !== 'unit') {
+                                var fieldVal = s[field.field_code];
+                                var linkVal = s[field.link_field];
+                                if (fieldVal && linkVal) {
+                                    onLinkFieldChange(field.field_code);
+                                    setTimeout(function() {
+                                        $('#sf_' + field.field_code).val(fieldVal);
+                                    }, 100);
+                                }
+                            }
+                        }
+                    }, 200);
+                }
+            });
+        }
+
+        function closeModal() {
+            $('#staffModal').hide();
+        }
+
+        function saveStaff() {
+            var id = $('#editId').val();
+            var data = {};
+            for (var i = 0; i < _fields.length; i++) {
+                var code = _fields[i].field_code;
+                var el = $('#sf_' + code);
+                if (el.length) {
+                    data[code] = el.val();
+                }
+            }
+            if (!data.name) { showToast('姓名不能为空', 'error'); return; }
+
+            if (id) {
+                apiPut('/api/staff/' + id, data, function(res) {
+                    if (res.code === 200) {
+                        showToast('更新成功', 'success');
+                        closeModal();
+                        loadStaff(_page);
+                    } else {
+                        showToast(res.msg, 'error');
+                    }
+                });
+            } else {
+                apiPost('/api/staff', data, function(res) {
+                    if (res.code === 200) {
+                        showToast('添加成功', 'success');
+                        closeModal();
+                        loadStaff(1);
+                    } else {
+                        showToast(res.msg, 'error');
+                    }
+                });
+            }
+        }
+
+        function downloadTemplate() {
+            window.location.href = API + '/api/import/template';
+        }
+
+        function showImportModal() {
+            $('#importFile').val('');
+            $('#importResult').hide();
+            $('#btnImport').prop('disabled', false).text('开始导入');
+            $('#importModal').show();
+        }
+
+        function closeImportModal() {
+            $('#importModal').hide();
+        }
+
+        function doImport() {
+            var fileInput = document.getElementById('importFile');
+            if (!fileInput.files || !fileInput.files[0]) {
+                showToast('请选择要导入的文件', 'error');
+                return;
+            }
+
+            var file = fileInput.files[0];
+            var ext = file.name.split('.').pop().toLowerCase();
+            if (ext !== 'xlsx' && ext !== 'xls') {
+                showToast('仅支持Excel文件（.xlsx/.xls）', 'error');
+                return;
+            }
+
+            $('#btnImport').prop('disabled', true).text('导入中...');
+            $('#importResult').hide();
+
+            var formData = new FormData();
+            formData.append('file', file);
+
+            $.ajax({
+                url: API + '/api/import/staff',
+                type: 'POST',
+                data: formData,
+                processData: false,
+                contentType: false,
+                xhrFields: { withCredentials: true },
+                success: function(res) {
+                    if (res.code === 200) {
+                        var d = res.data;
+                        var html = '<div style="color:#155724;background:#d4edda;border:1px solid #c3e6cb;padding:10px;border-radius:4px;">';
+                        html += '<b>' + escapeHtml(res.msg) + '</b>';
+                        if (d.errors && d.errors.length > 0) {
+                            html += '<div style="margin-top:8px;color:#856404;">';
+                            html += '<b>警告信息：</b><ul style="margin:4px 0 0 16px;">';
+                            for (var i = 0; i < d.errors.length; i++) {
+                                html += '<li>' + escapeHtml(d.errors[i]) + '</li>';
+                            }
+                            html += '</ul></div>';
+                        }
+                        html += '</div>';
+                        $('#importResult').html(html).show();
+                        loadStaff(1);
+                    } else {
+                        var html = '<div style="color:#721c24;background:#f8d7da;border:1px solid #f5c6cb;padding:10px;border-radius:4px;">';
+                        html += '<b>导入失败：</b>' + escapeHtml(res.msg);
+                        html += '</div>';
+                        $('#importResult').html(html).show();
+                    }
+                    $('#btnImport').prop('disabled', false).text('开始导入');
+                },
+                error: function(xhr) {
+                    var msg = '导入请求失败';
+                    try {
+                        var res = JSON.parse(xhr.responseText);
+                        if (res && res.msg) msg = res.msg;
+                    } catch(e) {}
+                    var html = '<div style="color:#721c24;background:#f8d7da;border:1px solid #f5c6cb;padding:10px;border-radius:4px;">';
+                    html += '<b>导入失败：</b>' + escapeHtml(msg);
+                    html += '</div>';
+                    $('#importResult').html(html).show();
+                    $('#btnImport').prop('disabled', false).text('开始导入');
+                }
+            });
+        }
+
+        function deleteStaff(id) {
+            if (!confirm('确定删除该人员？')) return;
+            apiDelete('/api/staff/' + id, function(res) {
+                if (res.code === 200) {
+                    showToast('删除成功', 'success');
+                    loadStaff(_page);
+                }
+            });
+        }
+
+        function toggleSelectAll(checkbox) {
+            var checkboxes = document.getElementsByClassName('staff-checkbox');
+            for (var i = 0; i < checkboxes.length; i++) {
+                checkboxes[i].checked = checkbox.checked;
+            }
+            updateSelectedCount();
+        }
+
+        function updateSelectedCount() {
+            var checked = document.querySelectorAll('.staff-checkbox:checked');
+            var count = checked.length;
+            document.getElementById('selectedCount').textContent = count;
+            if (count > 0) {
+                document.getElementById('batchDeleteBtn').style.display = 'inline-block';
+            } else {
+                document.getElementById('batchDeleteBtn').style.display = 'none';
+            }
+            
+            var allCheckboxes = document.querySelectorAll('.staff-checkbox');
+            var selectAllCheckbox = document.getElementById('selectAllStaff');
+            if (selectAllCheckbox) {
+                selectAllCheckbox.checked = count === allCheckboxes.length && count > 0;
+            }
+        }
+
+        function batchDeleteStaff() {
+            var checked = document.querySelectorAll('.staff-checkbox:checked');
+            if (checked.length === 0) {
+                showToast('请先选择要删除的人员', 'warning');
+                return;
+            }
+            
+            if (!confirm('确定要删除选中的 ' + checked.length + ' 个人员吗？此操作不可恢复！')) {
+                return;
+            }
+            
+            var ids = [];
+            for (var i = 0; i < checked.length; i++) {
+                ids.push(parseInt(checked[i].value));
+            }
+            
+            apiPost('/api/staff/batch_delete', {ids: ids}, function(res) {
+                if (res.code === 200) {
+                    showToast('批量删除成功，共删除 ' + res.data.deleted_count + ' 人', 'success');
+                    loadStaff(1);
+                    document.getElementById('selectAllStaff').checked = false;
+                    updateSelectedCount();
+                } else {
+                    showToast(res.msg || '批量删除失败', 'error');
+                }
+            });
+        }
+
+        function showAssessment(staffId, staffName) {
+            $('#assessStaffId').val(staffId);
+            $('#assessStaffName').text(staffName);
+            var now = new Date();
+            $('#assessYear').val(now.getFullYear());
+            $('#assessGrade').val('称职');
+            $('#assessRemark').val('');
+            loadAssessments(staffId);
+            $('#assessModal').show();
+        }
+
+        function loadAssessments(staffId) {
+            apiGet('/api/assessment/' + staffId, function(res) {
+                if (res.code === 200) {
+                    var html = '';
+                    for (var i = 0; i < res.data.length; i++) {
+                        var a = res.data[i];
+                        var gradeBadge = '';
+                        if (a.grade === '优秀') gradeBadge = '<span class="badge badge-success">优秀</span>';
+                        else if (a.grade === '称职') gradeBadge = '<span class="badge badge-info">称职</span>';
+                        else gradeBadge = '<span class="badge badge-danger">称职以下</span>';
+                        html += '<tr>';
+                        html += '<td>' + a.year + '</td>';
+                        html += '<td>' + gradeBadge + '</td>';
+                        html += '<td>' + (a.remark || '-') + '</td>';
+                        html += '<td><button class="btn btn-sm btn-danger" onclick="deleteAssessment(' + a.id + ')">删除</button></td>';
+                        html += '</tr>';
+                    }
+                    $('#assessTable').html(html || '<tr><td colspan="4" class="text-center" style="color:#999;">暂无考核记录</td></tr>');
+                }
+            });
+        }
+
+        function saveAssessment() {
+            var data = {
+                staff_id: parseInt($('#assessStaffId').val()),
+                year: parseInt($('#assessYear').val()),
+                grade: $('#assessGrade').val(),
+                remark: $('#assessRemark').val().trim()
+            };
+            if (!data.year || !data.grade) { showToast('请填写年份和等次', 'error'); return; }
+            apiPost('/api/assessment', data, function(res) {
+                if (res.code === 200) {
+                    showToast('保存成功', 'success');
+                    loadAssessments(data.staff_id);
+                } else {
+                    showToast(res.msg, 'error');
+                }
+            });
+        }
+
+        function deleteAssessment(aid) {
+            if (!confirm('确定删除该考核记录？')) return;
+            apiDelete('/api/assessment/' + aid, function(res) {
+                if (res.code === 200) {
+                    showToast('删除成功', 'success');
+                    var staffId = parseInt($('#assessStaffId').val());
+                    loadAssessments(staffId);
+                }
+            });
+        }
+
+        function closeAssessModal() {
+            $('#assessModal').hide();
+            loadStaff(_page);
+        }
+
+        function showChanges(staffId, staffName) {
+            $('#changeStaffName').text(staffName);
+            $('#changeTable').html('<tr><td colspan="6" class="text-center" style="color:#999;">加载中...</td></tr>');
+            $('#changeModal').show();
+            
+            apiGet('/api/staff/' + staffId + '/changes', function(res) {
+                if (res.code === 200) {
+                    var html = '';
+                    var list = res.data.list || [];
+                    for (var i = 0; i < list.length; i++) {
+                        var c = list[i];
+                        html += '<tr>';
+                        html += '<td>' + (i + 1) + '</td>';
+                        html += '<td><span class="badge badge-info">' + c.field_name + '</span></td>';
+                        html += '<td>' + (c.old_value || '-') + '</td>';
+                        html += '<td><strong style="color:#e74c3c;">' + (c.new_value || '-') + '</strong></td>';
+                        html += '<td>' + (c.operator || '-') + '</td>';
+                        html += '<td>' + (c.create_time || '') + '</td>';
+                        html += '</tr>';
+                    }
+                    $('#changeTable').html(html || '<tr><td colspan="6" class="text-center" style="color:#999;">暂无变更记录</td></tr>');
+                } else {
+                    $('#changeTable').html('<tr><td colspan="6" class="text-center" style="color:#999;">加载失败</td></tr>');
+                }
+            });
+        }
+
+        function closeChangeModal() {
+            $('#changeModal').hide();
+        }
+
+        var _staffDataForChange = null;
+        
+        function lockStaff(id) {
+            if (!confirm('确定要锁定该人员吗？锁定后将无法编辑。')) return;
+            apiPost('/api/staff/' + id + '/lock', {}, function(res) {
+                if (res.code === 200) {
+                    showToast('锁定成功', 'success');
+                    loadStaff(_page);
+                } else {
+                    showToast(res.msg, 'error');
+                }
+            });
+        }
+
+        function unlockStaff(id) {
+            if (!confirm('确定要解锁该人员吗？')) return;
+            apiPost('/api/staff/' + id + '/unlock', {}, function(res) {
+                if (res.code === 200) {
+                    showToast('解锁成功', 'success');
+                    loadStaff(_page);
+                } else {
+                    showToast(res.msg, 'error');
+                }
+            });
+        }
+
+        var _detailData = null;
+        var _detailPages = { assessment: 1, salary: 1, change: 1 };
+        var _detailPerPage = 5;
+
+        function showDetail(id) {
+            _detailPages = { assessment: 1, salary: 1, change: 1 };
+            apiGet('/api/staff/' + id + '/detail', function(res) {
+                if (res.code === 200) {
+                    _detailData = res.data;
+                    $('#detailStaffName').text(res.data.name);
+                    renderDetailContent();
+                    $('#detailModal').show();
+                }
+            });
+        }
+
+        function renderDetailContent() {
+            var s = _detailData;
+            if (!s) return;
+            var html = '';
+            
+            html += '<h5 style="margin-top:0;margin-bottom:10px;padding-bottom:5px;border-bottom:1px solid #e9ecef;"><i class="fas fa-user"></i> 基本信息</h5>';
+            html += '<div class="form-row" style="display:flex;flex-wrap:wrap;gap:10px;">';
+            var fields = s._fields || [];
+            fields.sort(function(a, b) { return a.sort_num - b.sort_num; });
+            for (var i = 0; i < fields.length; i++) {
+                var f = fields[i];
+                if (!f.is_active) continue;
+                var code = f.field_code;
+                var name = f.field_name;
+                var val = s[code] || '-';
+                html += '<div style="flex:1;min-width:22%;">';
+                html += '<label style="font-weight:500;font-size:12px;color:#666;">' + name + '</label>';
+                html += '<div style="padding:8px;background:#f8f9fa;border-radius:4px;font-size:14px;">' + val + '</div>';
+                html += '</div>';
+            }
+            html += '<div style="flex:1;min-width:22%;">';
+            html += '<label style="font-weight:500;font-size:12px;color:#666;">工龄</label>';
+            html += '<div style="padding:8px;background:#f8f9fa;border-radius:4px;font-size:14px;">' + (s.work_years || 0) + '</div>';
+            html += '</div>';
+            html += '<div style="flex:1;min-width:22%;">';
+            html += '<label style="font-weight:500;font-size:12px;color:#666;">套改年限</label>';
+            html += '<div style="padding:8px;background:#f8f9fa;border-radius:4px;font-size:14px;">' + (s.taogai_years || 0) + '</div>';
+            html += '</div>';
+            html += '</div>';
+            
+            html += renderAssessmentSection();
+            html += renderSalarySection();
+            html += renderChangeSection();
+            
+            $('#detailBody').html(html);
+        }
+
+        function renderAssessmentSection() {
+            var assessments = _detailData._assessments || [];
+            var total = assessments.length;
+            var page = _detailPages.assessment;
+            var perPage = _detailPerPage;
+            var totalPages = Math.max(1, Math.ceil(total / perPage));
+            if (page > totalPages) page = totalPages;
+            _detailPages.assessment = page;
+            
+            var start = (page - 1) * perPage;
+            var pageData = assessments.slice(start, start + perPage);
+            
+            var html = '<h5 style="margin-top:20px;margin-bottom:10px;padding-bottom:5px;border-bottom:1px solid #e9ecef;"><i class="fas fa-clipboard-check"></i> 考核记录</h5>';
+            if (total === 0) {
+                html += '<p style="color:#999;">暂无考核记录</p>';
+            } else {
+                html += '<table style="width:100%;border-collapse:collapse;margin-bottom:8px;">';
+                html += '<thead style="background:#f8f9fa;"><tr><th style="padding:8px;border:1px solid #e9ecef;text-align:left;">年份</th><th style="padding:8px;border:1px solid #e9ecef;text-align:left;">等次</th><th style="padding:8px;border:1px solid #e9ecef;text-align:left;">备注</th></tr></thead>';
+                html += '<tbody>';
+                for (var i = 0; i < pageData.length; i++) {
+                    var a = pageData[i];
+                    var gradeStyle = '';
+                    if (a.grade === '优秀') gradeStyle = 'background:#27ae60;color:#fff;padding:2px 6px;border-radius:3px;';
+                    else if (a.grade === '称职') gradeStyle = 'background:#3498db;color:#fff;padding:2px 6px;border-radius:3px;';
+                    else gradeStyle = 'background:#e74c3c;color:#fff;padding:2px 6px;border-radius:3px;';
+                    html += '<tr>';
+                    html += '<td style="padding:8px;border:1px solid #e9ecef;">' + a.year + '</td>';
+                    html += '<td style="padding:8px;border:1px solid #e9ecef;"><span style="' + gradeStyle + '">' + a.grade + '</span></td>';
+                    html += '<td style="padding:8px;border:1px solid #e9ecef;">' + (a.remark || '-') + '</td>';
+                    html += '</tr>';
+                }
+                html += '</tbody></table>';
+                html += renderDetailPagination('assessment', page, totalPages);
+            }
+            return html;
+        }
+
+        function renderSalarySection() {
+            var salaries = _detailData._salary_records || [];
+            var total = salaries.length;
+            var page = _detailPages.salary;
+            var perPage = _detailPerPage;
+            var totalPages = Math.max(1, Math.ceil(total / perPage));
+            if (page > totalPages) page = totalPages;
+            _detailPages.salary = page;
+            
+            var start = (page - 1) * perPage;
+            var pageData = salaries.slice(start, start + perPage);
+            
+            var html = '<h5 style="margin-top:20px;margin-bottom:10px;padding-bottom:5px;border-bottom:1px solid #e9ecef;"><i class="fas fa-money-bill-wave"></i> 工资记录</h5>';
+            if (total === 0) {
+                html += '<p style="color:#999;">暂无工资记录</p>';
+            } else {
+                html += '<table style="width:100%;border-collapse:collapse;margin-bottom:8px;">';
+                html += '<thead style="background:#f8f9fa;"><tr><th style="padding:8px;border:1px solid #e9ecef;text-align:left;">年月</th><th style="padding:8px;border:1px solid #e9ecef;text-align:left;">应发</th><th style="padding:8px;border:1px solid #e9ecef;text-align:left;">扣款</th><th style="padding:8px;border:1px solid #e9ecef;text-align:left;">实发</th></tr></thead>';
+                html += '<tbody>';
+                for (var i = 0; i < pageData.length; i++) {
+                    var sr = pageData[i];
+                    html += '<tr>';
+                    html += '<td style="padding:8px;border:1px solid #e9ecef;">' + sr.year + '年' + sr.month + '月</td>';
+                    html += '<td style="padding:8px;border:1px solid #e9ecef;color:#27ae60;">' + (sr.total_income || 0).toFixed(2) + '</td>';
+                    html += '<td style="padding:8px;border:1px solid #e9ecef;color:#e74c3c;">' + (sr.total_deduct || 0).toFixed(2) + '</td>';
+                    html += '<td style="padding:8px;border:1px solid #e9ecef;font-weight:500;">' + (sr.real_salary || 0).toFixed(2) + '</td>';
+                    html += '</tr>';
+                }
+                html += '</tbody></table>';
+                html += renderDetailPagination('salary', page, totalPages);
+            }
+            return html;
+        }
+
+        function renderChangeSection() {
+            var changes = _detailData._changes || [];
+            var total = changes.length;
+            var page = _detailPages.change;
+            var perPage = _detailPerPage;
+            var totalPages = Math.max(1, Math.ceil(total / perPage));
+            if (page > totalPages) page = totalPages;
+            _detailPages.change = page;
+            
+            var start = (page - 1) * perPage;
+            var pageData = changes.slice(start, start + perPage);
+            
+            var html = '<h5 style="margin-top:20px;margin-bottom:10px;padding-bottom:5px;border-bottom:1px solid #e9ecef;"><i class="fas fa-history"></i> 变更记录</h5>';
+            if (total === 0) {
+                html += '<p style="color:#999;">暂无变更记录</p>';
+            } else {
+                html += '<table style="width:100%;border-collapse:collapse;margin-bottom:8px;">';
+                html += '<thead style="background:#f8f9fa;"><tr><th style="padding:8px;border:1px solid #e9ecef;text-align:left;">项目</th><th style="padding:8px;border:1px solid #e9ecef;text-align:left;">原信息</th><th style="padding:8px;border:1px solid #e9ecef;text-align:left;">新信息</th><th style="padding:8px;border:1px solid #e9ecef;text-align:left;">操作人</th><th style="padding:8px;border:1px solid #e9ecef;text-align:left;">时间</th></tr></thead>';
+                html += '<tbody>';
+                for (var i = 0; i < pageData.length; i++) {
+                    var c = pageData[i];
+                    html += '<tr>';
+                    html += '<td style="padding:8px;border:1px solid #e9ecef;"><span style="background:#3498db;color:#fff;padding:2px 6px;border-radius:3px;">' + c.field_name + '</span></td>';
+                    html += '<td style="padding:8px;border:1px solid #e9ecef;">' + (c.old_value || '-') + '</td>';
+                    html += '<td style="padding:8px;border:1px solid #e9ecef;color:#e74c3c;font-weight:500;">' + (c.new_value || '-') + '</td>';
+                    html += '<td style="padding:8px;border:1px solid #e9ecef;">' + (c.operator || '-') + '</td>';
+                    html += '<td style="padding:8px;border:1px solid #e9ecef;font-size:12px;">' + (c.create_time || '') + '</td>';
+                    html += '</tr>';
+                }
+                html += '</tbody></table>';
+                html += renderDetailPagination('change', page, totalPages);
+            }
+            return html;
+        }
+
+        function renderDetailPagination(type, currentPage, totalPages) {
+            if (totalPages <= 1) return '';
+            var html = '<div style="display:flex;align-items:center;justify-content:center;gap:8px;padding:8px 0;">';
+            html += '<span style="font-size:12px;color:#666;">第 ' + currentPage + '/' + totalPages + ' 页</span>';
+            if (currentPage > 1) {
+                html += '<button class="btn btn-sm btn-outline" onclick="detailPageGo(\'' + type + '\',' + (currentPage - 1) + ')">上一页</button>';
+            }
+            if (currentPage < totalPages) {
+                html += '<button class="btn btn-sm btn-outline" onclick="detailPageGo(\'' + type + '\',' + (currentPage + 1) + ')">下一页</button>';
+            }
+            html += '</div>';
+            return html;
+        }
+
+        function detailPageGo(type, page) {
+            _detailPages[type] = page;
+            renderDetailContent();
+        }
+
+        function closeDetailModal() {
+            $('#detailModal').hide();
+        }
+
+        function showStaffChange(id, name) {
+            $('#staffChangeId').val(id);
+            $('#staffChangeStaffName').text(name);
+            $('#staffChangeRemark').val('');
+            $('#staffChangeNewGroup').hide();
+            $('#staffChangeOldValue').val('');
+            
+            var now = new Date();
+            var ym = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
+            $('#staffChangeMonth').val(ym);
+            
+            Promise.all([
+                new Promise(function(resolve, reject) {
+                    apiGet('/api/field_meta/all', function(res) {
+                        if (res.code === 200) {
+                            _fields = res.data.filter(function(f) { return f.is_active; });
+                            resolve();
+                        } else {
+                            reject(new Error(res.msg || '字段数据加载失败'));
+                        }
+                    }, function(xhr) { 
+                        reject(new Error('网络错误: ' + (xhr.status || '未知'))); 
+                    });
+                }),
+                new Promise(function(resolve, reject) {
+                    apiGet('/api/staff/' + id, function(res) {
+                        if (res.code === 200) {
+                            _staffDataForChange = res.data;
+                            resolve();
+                        } else {
+                            reject(new Error(res.msg || '人员数据加载失败'));
+                        }
+                    }, function(xhr) { 
+                        reject(new Error('网络错误: ' + (xhr.status || '未知'))); 
+                    });
+                })
+            ]).then(function() {
+                var html = '<option value="">请选择项目</option>';
+                for (var i = 0; i < _fields.length; i++) {
+                    var f = _fields[i];
+                    html += '<option value="' + f.field_code + '">' + f.field_name + '</option>';
+                }
+                $('#staffChangeField').html(html);
+                $('#staffChangeField').val('');
+                $('#staffChangeModal').show();
+            }).catch(function(err) {
+                showToast('加载数据失败: ' + (err.message || '未知错误'), 'error');
+                console.error('showStaffChange错误:', err);
+            });
+        }
+
+        function closeStaffChangeModal() {
+            $('#staffChangeModal').hide();
+        }
+
+        function onChangeFieldSelect() {
+            var fieldCode = $('#staffChangeField').val();
+            if (!fieldCode) {
+                $('#staffChangeOldValue').val('');
+                $('#staffChangeNewGroup').hide();
+                return;
+            }
+            
+            var oldVal = '';
+            if (_staffDataForChange) {
+                oldVal = _staffDataForChange[fieldCode] || '';
+            }
+            $('#staffChangeOldValue').val(oldVal);
+            
+            var fieldMeta = _fields.find(function(f) { return f.field_code === fieldCode; });
+            if (!fieldMeta) {
+                $('#staffChangeNewGroup').html('<label>新信息</label><input type="text" class="form-control" id="staffChangeNewValue">');
+                $('#staffChangeNewGroup').show();
+                return;
+            }
+
+            if (fieldMeta.link_field && fieldMeta.link_options) {
+                var sourceVal = _staffDataForChange ? (_staffDataForChange[fieldMeta.link_field] || '') : '';
+                var html = '<label>新信息</label><select class="form-control" id="staffChangeNewValue"><option value="">请选择</option>';
+                if (sourceVal && fieldMeta.link_options[sourceVal]) {
+                    var linkedOpts = fieldMeta.link_options[sourceVal];
+                    var optsArr = [];
+                    if (Array.isArray(linkedOpts)) {
+                        optsArr = linkedOpts;
+                    } else if (typeof linkedOpts === 'string' && linkedOpts) {
+                        optsArr = linkedOpts.split(',');
+                    }
+                    for (var k = 0; k < optsArr.length; k++) {
+                        var opt = optsArr[k].trim();
+                        if (opt) html += '<option value="' + opt + '">' + opt + '</option>';
+                    }
+                }
+                if (fieldMeta.options) {
+                    var baseOpts = fieldMeta.options.split(',');
+                    for (var k = 0; k < baseOpts.length; k++) {
+                        var opt = baseOpts[k].trim();
+                        if (opt) html += '<option value="' + opt + '">' + opt + '</option>';
+                    }
+                }
+                html += '</select>';
+                $('#staffChangeNewGroup').html(html);
+                $('#staffChangeNewGroup').show();
+                return;
+            }
+
+            if (fieldCode === 'dept') {
+                var html = '<label>新信息</label><select class="form-control" id="staffChangeNewValue"><option value="">请选择</option>';
+                if (fieldMeta.options) {
+                    var opts = fieldMeta.options.split(',');
+                    for (var k = 0; k < opts.length; k++) {
+                        var opt = opts[k].trim();
+                        if (opt) html += '<option value="' + opt + '">' + opt + '</option>';
+                    }
+                }
+                html += '</select>';
+                $('#staffChangeNewGroup').html(html);
+                $('#staffChangeNewGroup').show();
+                return;
+            }
+            
+            if (fieldCode === 'gender') {
+                var opts = fieldMeta.options ? fieldMeta.options.split(',') : ['男', '女'];
+                var html = '<label>新信息</label><select class="form-control" id="staffChangeNewValue"><option value="">请选择</option>';
+                for (var k = 0; k < opts.length; k++) {
+                    var opt = opts[k].trim();
+                    if (opt) html += '<option value="' + opt + '">' + opt + '</option>';
+                }
+                html += '</select>';
+                $('#staffChangeNewGroup').html(html);
+            } else if (fieldCode === 'status') {
+                var opts = fieldMeta.options ? fieldMeta.options.split(',') : ['在职', '离职'];
+                var html = '<label>新信息</label><select class="form-control" id="staffChangeNewValue"><option value="">请选择</option>';
+                for (var k = 0; k < opts.length; k++) {
+                    var opt = opts[k].trim();
+                    if (opt) html += '<option value="' + opt + '">' + opt + '</option>';
+                }
+                html += '</select>';
+                $('#staffChangeNewGroup').html(html);
+            } else if (fieldMeta.field_type === 'select') {
+                var html = '<label>新信息</label><select class="form-control" id="staffChangeNewValue"><option value="">请选择</option>';
+                if (fieldMeta.options) {
+                    var opts = fieldMeta.options.split(',');
+                    for (var i = 0; i < opts.length; i++) {
+                        var opt = opts[i].trim();
+                        if (opt) html += '<option value="' + opt + '">' + opt + '</option>';
+                    }
+                }
+                html += '</select>';
+                $('#staffChangeNewGroup').html(html);
+            } else if (fieldMeta.field_type === 'date') {
+                $('#staffChangeNewGroup').html('<label>新信息</label><input type="date" class="form-control" id="staffChangeNewValue">');
+            } else if (fieldMeta.field_type === 'dateym') {
+                $('#staffChangeNewGroup').html('<label>新信息</label><input type="month" class="form-control" id="staffChangeNewValue">');
+            } else if (fieldMeta.field_type === 'number') {
+                $('#staffChangeNewGroup').html('<label>新信息</label><input type="number" class="form-control" id="staffChangeNewValue">');
+            } else {
+                $('#staffChangeNewGroup').html('<label>新信息</label><input type="text" class="form-control" id="staffChangeNewValue">');
+            }
+            $('#staffChangeNewGroup').show();
+        }
+
+        function saveStaffChange() {
+            var id = $('#staffChangeId').val();
+            var fieldCode = $('#staffChangeField').val();
+            var newVal = $('#staffChangeNewValue').val();
+            var remark = $('#staffChangeRemark').val().trim();
+            var changeMonth = $('#staffChangeMonth').val();
+            
+            if (!changeMonth) { showToast('请选择变更年月', 'error'); return; }
+            if (!fieldCode) { showToast('请选择变更项目', 'error'); return; }
+            if (!newVal) { showToast('请填写新信息', 'error'); return; }
+            
+            var postData = {
+                field_code: fieldCode,
+                new_value: newVal,
+                change_month: changeMonth,
+                remark: remark
+            };
+            console.log('saveStaffChange发送数据:', JSON.stringify(postData));
+            
+            apiPost('/api/staff/' + id + '/change', postData, function(res) {
+                if (res.code === 200) {
+                    showToast('变更成功', 'success');
+                    closeStaffChangeModal();
+                    loadStaff(_page);
+                } else {
+                    showToast(res.msg || '变更失败', 'error');
+                }
+            }, function(xhr) {
+                var msg = '请求失败，请重试';
+                try {
+                    var res = JSON.parse(xhr.responseText);
+                    if (res && res.msg) msg = res.msg;
+                } catch(e) {}
+                console.error('saveStaffChange失败:', xhr.status, xhr.responseText);
+                showToast(msg, 'error');
+            });
+        }
+
+        loadStaff(1);
+    </script>
+</body>
+</html>

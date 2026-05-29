@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>薪资查询 - 人员薪酬管理系统</title>
+    <link rel="stylesheet" href="css/style.css">
+    <script src="https://cdn.bootcdn.net/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+</head>
+<body>
+    <div class="layout">
+        <div class="sidebar"></div>
+        <div class="main-content">
+            <div class="top-header">
+                <span class="page-title">薪资查询</span>
+                <div class="user-info">
+                    <span id="username"></span>
+                    <button class="btn btn-sm btn-outline" onclick="logout()">退出</button>
+                </div>
+            </div>
+            <div class="page-body">
+                <div class="card">
+                    <div class="toolbar">
+                        <label style="font-weight:500;">帐套：</label>
+                        <select class="form-control" id="searchBook" style="min-width:160px;">
+                            <option value="">全部</option>
+                        </select>
+                        <label style="font-weight:500;">年份：</label>
+                        <input type="number" class="form-control" id="searchYear" style="width:100px;">
+                        <label style="font-weight:500;">月份：</label>
+                        <select class="form-control" id="searchMonth" style="width:80px;">
+                            <option value="">全部</option>
+                        </select>
+                        <input type="text" class="form-control" id="searchName" placeholder="姓名" style="min-width:100px;">
+                        <div id="ssDept" style="min-width:140px;"></div>
+                        <div id="ssUnit" style="min-width:140px;"></div>
+                        <button class="btn btn-primary" onclick="loadRecords(1)">查询</button>
+                    </div>
+                    <div style="overflow-x:auto;">
+                        <table>
+                            <thead id="recordThead"></thead>
+                            <tbody id="recordTbody"></tbody>
+                        </table>
+                    </div>
+                    <div class="pagination" id="pagination"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="editModal" style="display:none;">
+        <div class="modal-overlay">
+            <div class="modal" style="width:640px;">
+                <div class="modal-header">
+                    <h4>修改薪资明细</h4>
+                    <button class="close-btn" onclick="closeModal()">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <input type="hidden" id="editRecordId">
+                    <div id="editFields"></div>
+                    <div class="form-row mt-3">
+                        <div class="form-group">
+                            <label>应发合计</label>
+                            <input type="number" class="form-control" id="editTotalIncome" step="0.01">
+                        </div>
+                        <div class="form-group">
+                            <label>扣款合计</label>
+                            <input type="number" class="form-control" id="editTotalDeduct" step="0.01">
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-outline" onclick="closeModal()">取消</button>
+                    <button class="btn btn-primary" onclick="saveRecord()">保存</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/common.js"></script>
+    <script>
+        initPage('salary_query');
+
+        var now = new Date();
+        $('#searchYear').val(now.getFullYear());
+        var monthHtml = '<option value="">全部</option>';
+        for (var m = 1; m <= 12; m++) {
+            monthHtml += '<option value="' + m + '">' + m + '月</option>';
+        }
+        $('#searchMonth').html(monthHtml);
+
+        apiGet('/api/salary_book', function(res) {
+            if (res.code === 200) {
+                var html = '<option value="">全部</option>';
+                for (var i = 0; i < res.data.length; i++) {
+                    html += '<option value="' + res.data[i].id + '">' + res.data[i].book_name + '</option>';
+                }
+                $('#searchBook').html(html);
+            }
+        });
+
+        var _currentPage = 1;
+        var _deptUnits = {};
+
+        // 先从字段配置获取联动数据
+        apiGet('/api/field_meta/all', function(res) {
+            if (res.code === 200) {
+                for (var i = 0; i < res.data.length; i++) {
+                    var f = res.data[i];
+                    if (f.link_field && f.link_options && typeof f.link_options === 'object') {
+                        // link_options: {dept: "unit1,unit2"} => convert to {dept: ["unit1","unit2"]}
+                        var keys = Object.keys(f.link_options);
+                        for (var j = 0; j < keys.length; j++) {
+                            _deptUnits[keys[j]] = f.link_options[keys[j]].split(',');
+                        }
+                        break;
+                    }
+                }
+            }
+            loadDeptOptions();
+        });
+
+        function loadDeptOptions() {
+            var deptData = [{value: '', text: '全部部门'}];
+            var depts = Object.keys(_deptUnits).sort();
+            for (var i = 0; i < depts.length; i++) {
+                deptData.push({value: depts[i], text: depts[i]});
+            }
+            $('#ssDept').searchSelect({
+                data: deptData,
+                placeholder: '全部部门',
+                searchPlaceholder: '搜索部门...',
+                value: '',
+                onChange: function(val) { onDeptChange(val); }
+            });
+        }
+
+        $('#ssUnit').searchSelect({
+            data: [{value: '', text: '全部单位'}],
+            placeholder: '全部单位',
+            searchPlaceholder: '搜索单位...',
+            value: ''
+        });
+
+        function onDeptChange(dept) {
+            var unitData = [{value: '', text: '全部单位'}];
+            if (dept && _deptUnits[dept]) {
+                var units = _deptUnits[dept];
+                for (var i = 0; i < units.length; i++) {
+                    unitData.push({value: units[i].trim(), text: units[i].trim()});
+                }
+            }
+            $('#ssUnit')[0].setOptions(unitData);
+            $('#ssUnit')[0].setValue('');
+        }
+
+        function loadRecords(page) {
+            _currentPage = page || 1;
+            var params = 'page=' + _currentPage + '&per_page=15';
+            var bookId = $('#searchBook').val();
+            var year = $('#searchYear').val();
+            var month = $('#searchMonth').val();
+            var name = $('#searchName').val().trim();
+            var dept = $('#ssDept').data('value') || '';
+            var unit = $('#ssUnit').data('value') || '';
+            if (bookId) params += '&book_id=' + bookId;
+            if (year) params += '&year=' + year;
+            if (month) params += '&month=' + month;
+            if (name) params += '&name=' + encodeURIComponent(name);
+            if (dept) params += '&dept=' + encodeURIComponent(dept);
+            if (unit) params += '&unit=' + encodeURIComponent(unit);
+
+            apiGet('/api/salary_record?' + params, function(res) {
+                if (res.code === 200) {
+                    renderRecords(res.data);
+                }
+            });
+        }
+
+        var _allItemNames = [];
+        function renderRecords(data) {
+            var list = data.list || [];
+            _allItemNames = [];
+            for (var i = 0; i < list.length; i++) {
+                var iv = list[i].item_values || {};
+                for (var key in iv) {
+                    if (_allItemNames.indexOf(key) === -1) _allItemNames.push(key);
+                }
+            }
+
+            var thead = '<tr><th>序号</th><th>帐套</th><th>姓名</th><th>部门</th><th>年份</th><th>月份</th>';
+            for (var j = 0; j < _allItemNames.length; j++) {
+                thead += '<th>' + _allItemNames[j] + '</th>';
+            }
+            thead += '<th>应发合计</th><th>扣款合计</th><th>实发工资</th><th>操作</th></tr>';
+            $('#recordThead').html(thead);
+
+            var tbody = '';
+            for (var i = 0; i < list.length; i++) {
+                var r = list[i];
+                tbody += '<tr>';
+                tbody += '<td>' + (i + 1) + '</td>';
+                tbody += '<td>' + (r.book_name || '-') + '</td>';
+                tbody += '<td>' + (r.name || '-') + '</td>';
+                tbody += '<td>' + (r.dept || '-') + '</td>';
+                tbody += '<td>' + r.year + '</td>';
+                tbody += '<td>' + r.month + '</td>';
+                for (var j = 0; j < _allItemNames.length; j++) {
+                    tbody += '<td>' + (r.item_values[_allItemNames[j]] || 0) + '</td>';
+                }
+                tbody += '<td><strong>' + r.total_income.toFixed(2) + '</strong></td>';
+                tbody += '<td><strong style="color:#e71d36;">' + r.total_deduct.toFixed(2) + '</strong></td>';
+                tbody += '<td><strong style="color:#2ec4b6;">' + r.real_salary.toFixed(2) + '</strong></td>';
+                tbody += '<td><button class="btn btn-sm btn-info" onclick="editRecord(' + r.id + ')">修改</button></td>';
+                tbody += '</tr>';
+            }
+            $('#recordTbody').html(tbody || '<tr><td colspan="99" class="text-center" style="color:#999;">暂无数据</td></tr>');
+            renderPagination('#pagination', data.total, data.page, data.per_page, 'loadRecords');
+        }
+
+        var _currentRecord = null;
+        function editRecord(id) {
+            var list = $('#recordTbody tr');
+            var record = null;
+            var params = 'page=' + _currentPage + '&per_page=15';
+            apiGet('/api/salary_record?' + params, function(res) {
+                if (res.code === 200) {
+                    record = res.data.list.find(function(r) { return r.id === id; });
+                    if (!record) return;
+                    _currentRecord = record;
+                    $('#editRecordId').val(record.id);
+                    $('#editTotalIncome').val(record.total_income);
+                    $('#editTotalDeduct').val(record.total_deduct);
+
+                    var html = '';
+                    var iv = record.item_values || {};
+                    var keys = Object.keys(iv);
+                    for (var i = 0; i < keys.length; i++) {
+                        html += '<div class="form-group"><label>' + keys[i] + '</label>';
+                        html += '<input type="number" class="form-control" id="editItem_' + i + '" step="0.01" value="' + iv[keys[i]] + '" data-key="' + keys[i] + '">';
+                        html += '</div>';
+                    }
+                    $('#editFields').html(html);
+                    $('#editModal').show();
+                }
+            });
+        }
+
+        function closeModal() { $('#editModal').hide(); }
+
+        function saveRecord() {
+            var id = $('#editRecordId').val();
+            var itemValues = {};
+            $('#editFields input').each(function() {
+                itemValues[$(this).data('key')] = parseFloat($(this).val()) || 0;
+            });
+            var totalIncome = parseFloat($('#editTotalIncome').val()) || 0;
+            var totalDeduct = parseFloat($('#editTotalDeduct').val()) || 0;
+
+            apiPut('/api/salary_record/' + id, {
+                item_values: itemValues,
+                total_income: totalIncome,
+                total_deduct: totalDeduct
+            }, function(res) {
+                if (res.code === 200) {
+                    showToast('修改成功', 'success');
+                    closeModal();
+                    loadRecords(_currentPage);
+                } else {
+                    showToast(res.msg, 'error');
+                }
+            });
+        }
+
+        loadRecords(1);
+    </script>
+</body>
+</html>
